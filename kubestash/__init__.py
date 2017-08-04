@@ -43,8 +43,6 @@ def parse_args():
 def credstash_getall(args, session_params):
     """ Returns an object containing all your Credstash secrets from `args.table`. """
     # https://github.com/fugue/credstash/blob/master/credstash.py#L297
-    # XXX: hack to make developing faster TODO: remove this
-    return json.loads(open("secrets.txt", "r").read())
     secrets = credstash.getAllSecrets("",
         region=DEFAULT_REGION,
         table=args.table,
