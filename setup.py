@@ -1,14 +1,15 @@
 #!/usr/bin/env python
-from distutils.core import setup
+from setuptools import find_packages
+from setuptools import setup
 setup(
   name='kubestash',
   packages=['kubestash'],
-  requires=[
+  install_requires=[
     'kubernetes',
     'boto3',
     'credstash',
   ],
-  version='0.2',
+  version='0.3',
   description='Push your Credstash secrets to Kubernetes.',
   author='David Hargat',
   author_email='davidmhargat@gmail.com',
@@ -16,5 +17,4 @@ setup(
   license="MIT",
   # download_url='TODO',
   keywords=['k8s', 'kubernetes', 'credstash'],
-  classifiers=[],
   scripts=['bin/kubestash'])
