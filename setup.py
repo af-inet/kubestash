@@ -2,7 +2,12 @@
 from distutils.core import setup
 setup(
   name='kubestash',
-  packages=['kubestash'],
+  packages=[
+    'kubestash',
+    'kubernetes',
+    'boto3',
+    'credstash',
+  ],
   version='0.1',
   description='Push your Credstash secrets to Kubernetes.',
   author='David Hargat',
