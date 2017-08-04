@@ -9,7 +9,7 @@ setup(
     'boto3',
     'credstash',
   ],
-  version='0.3',
+  version='0.4',
   description='Push your Credstash secrets to Kubernetes.',
   author='David Hargat',
   author_email='davidmhargat@gmail.com',
