@@ -1,3 +1,8 @@
 *.pyc
-env/
+*.egg-info
+.tox/
+__pycache__
+MANIFEST
+dist/
 build/
+env/
