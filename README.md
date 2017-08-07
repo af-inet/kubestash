@@ -110,7 +110,7 @@ which causes some people with older versions of python to get an ssl error:
 SSLError(SSLError(1, u'[SSL: TLSV1_ALERT_PROTOCOL_VERSION] tlsv1 alert protocol version (_ssl.c:590)'),)
 ```
 
-I recommend updating `openssl` and reinstalling `python3` to fix this:
+We recommend updating `openssl` and reinstalling `python3` to fix this:
 
 ```
 brew update
