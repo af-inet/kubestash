@@ -8,7 +8,29 @@ Push Credstash secrets to Kubernetes.
 pip3 install kubestash
 ```
 
-## installing - known issues
+## usage
+
+```
+usage: kubestash [-h] [-p PROXY] [-v] [--trace] [-f] table secret
+
+pulls secrets from Credstash and stores them in Kubernetes secret
+
+positional arguments:
+  table                 credstash table you want to pull credentials from
+  secret                name of the kubernetes secret you want to store
+                        secrets in
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -p PROXY, --proxy PROXY
+                        hostname of a kubernetes apiserver to use,
+                        for example: --proxy 127.0.0.1:8080
+  -v, --verbose         verbose output
+  --trace               show the full stack trace when an SSLError happens
+  -f, --force           replace a secret if it already exists
+```
+
+## known issues
 
 There's a known issue with the `kubernetes` library: https://github.com/kubernetes-incubator/client-python#sslerror-on-macos
 
@@ -34,19 +56,3 @@ kubectl proxy -p 8080
 kubestash --proxy 127.0.0.1:8080 table secret
 ```
 
-## usage
-
-```
-usage: kubestash [-h] [-v] [-f] table secret
-
-pulls secrets from Credstash and stores them in Kubernetes secret
-
-positional arguments:
-  table          credstash table you want to pull credentials from
-  secret         name of the kubernetes secret you want to store secrets in
-
-optional arguments:
-  -h, --help     show this help message and exit
-  -v, --verbose  verbose output
-  -f, --force    replace a secret if it already exists
-```
