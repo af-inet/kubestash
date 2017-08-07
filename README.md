@@ -18,33 +18,20 @@ which causes some people with older versions of python to get an ssl error:
 SSLError(SSLError(1, u'[SSL: TLSV1_ALERT_PROTOCOL_VERSION] tlsv1 alert protocol version (_ssl.c:590)'),)
 ```
 
-Kubernetes recommends you to run
-
-```
-brew install python
-```
-
-and then
-
-```
-python -c "import ssl; print ssl.OPENSSL_VERSION"
-```
-
-to make sure you have OpenSSL >= 1.0.0, however I did not find this to fix the problem.
-
-If you run into any SSL issue, try updating SSL, and then updating python:
+I recommend updating `openssl` and reinstalling `python3` to fix this:
 
 ```
 brew update
 brew install openssl
-brew link openssl --force
-brew install python --with-brewed-openssl
+brew uninstall python3
+brew install python3
 ```
 
-if that still doesn't work, try running:
+you can also subvert the issue by using a proxy:
 
 ```
-brew unlink openssl
+kubectl proxy -p 8080
+kubestash --proxy 127.0.0.1:8080 table secret
 ```
 
 ## usage
