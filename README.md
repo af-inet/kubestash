@@ -32,6 +32,77 @@ optional arguments:
   -f, --force           replace a secret if it already exists
 ```
 
+## Use Case
+
+`kubestash` is only useful in certain use cases with Kubernetes + Credstash.
+
+- You're using Credstash to store environment variables as secrets.
+
+- You're using Kubernetes, and storing environment variables as secrets.
+
+- You need to constantly synchronize your Credstash table to Kubernetes secrets.
+
+If the above is true for you, `kubestash` can help!
+
+Instead of manually synchronizing your Credstash table to a Kubernetes secret, you can just run
+
+`kubestash push TABLE SECRET`
+
+and you'll have a kubernetes SECRET which maps 1:1 (with some interpolation, see below) with your credstash TABLE.
+
+Instead of writing a ton of yaml to inject your secrets into each container, simply run:
+
+`kubestash push SECRET DEPLOYMENT`
+
+and each container in DEPLOYMENT will now have each key-value from SECRET.
+
+## Key interpolation between Credstash and Kubernetes.
+
+Kubernetes will only let you store secrets if the key conforms to DNS_SUBDOMAIN. [1]
+
+rfc1035/rfc1123 subdomain (DNS_SUBDOMAIN): One or more lowercase
+rfc1035/rfc1123 labels separated by '.' with a maximum length of 253
+characters [2]
+
+So when we move your Credstash table to a Kubernetes secret, we do a simple conversion.
+
+Imagine your Credstash table named `database` contains these key-values:
+
+```
+MY_DB_PASSWORD=databasezRcool
+MY_DB_PORT=8080
+```
+
+Your resulting secret from pushing this with `kubestash push` would contain something like this:
+
+```
+my-db-password=databasezRcool
+my-db-port=8080
+```
+
+and we do the reverse when you run `kubestash inject`, so your manifest ends up looking something like this
+
+```
+...
+env:
+- env:
+  - name: MY_DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: my-db-password
+        name: database
+  - name: MY_DB_PORT
+    valueFrom:
+      secretKeyRef:
+        key: my-db-port
+        name: database
+...
+```
+
+
+[1] https://kubernetes.io/docs/concepts/configuration/secret/
+[2] https://github.com/kubernetes/community/blob/master/contributors/design-proposals/identifiers.md
+
 ## known issues
 
 There's a known issue with the `kubernetes` library: https://github.com/kubernetes-incubator/client-python#sslerror-on-macos
