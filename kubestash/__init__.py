@@ -147,7 +147,7 @@ def main():
     kubernetes.config.load_kube_config()
 
     # override the host if the user passes in a --proxy
-    if len(args.proxy) == 1:
+    if args.proxy and (len(args.proxy) == 1):
         kubernetes.client.configuration.host = args.proxy[0]
 
     kube = kubernetes.client.CoreV1Api()
