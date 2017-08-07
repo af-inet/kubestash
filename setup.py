@@ -8,6 +8,7 @@ setup(
     'kubernetes',
     'boto3',
     'credstash',
+    'urllib3',
   ],
   version='0.5',
   description='Push your Credstash secrets to Kubernetes.',
