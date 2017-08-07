@@ -79,7 +79,7 @@ def parse_args():
     # https://docs.python.org/3/library/argparse.html
     help_text = "push a Credstash table to a Kubernetes secret"
 
-    parser = argparse.ArgumentParser(description=help_text)
+    parser = argparse.ArgumentParser(description=help_text, parents=[base_parser()])
 
     parsers = parser.add_subparsers(dest='cmd')
     parsers.required = True
@@ -227,6 +227,7 @@ def cmd_inject(args):
     # inject each secert into the deployment file as an environment variable
     for key in secrets:
         inject_secret(deployment, args.container, reverse_dns_subdomain(key), args.secret, key)
+    # TODO: implement a diff here so we can inform the use if they actually changed anything.
     kube_patch_deployment(args, {
         "spec": {
             "template": {
@@ -236,23 +237,25 @@ def cmd_inject(args):
             }
         }
     })
+    print("Injected environment variables into deployment: '{deployment}' from secret: '{secret}'" \
+        .format(deployment=args.deployment, secret=args.secret))
 
 def cmd_push(args):
     """ Pulls values from a Credstash table and stores them in a Kubernetes secret. """
     if kube_secret_exists(args):
         if not args.force:
-            print("Secret: '{secret}' already exists, run with -f to replace it." \
+            print("Kubernetes Secret: '{secret}' already exists, run with -f to replace it." \
                 .format(secret=args.secret))
             sys.exit(1)
         else:
             data = credstash_getall(args)
             kube_replace_secret(args, data)
-            print("Replaced Secret: '{secret}' with Credstash table: '{table}'" \
+            print("Replaced Kubernetes Secret: '{secret}' with Credstash table: '{table}'" \
                 .format(secret=args.secret, table=args.table))
     else:
         data = credstash_getall(args)
         kube_create_secret(args, data)
-        print("Created Secret: '{secret}' with Credstash table: '{table}'" \
+        print("Created Kubernetes Secret: '{secret}' with Credstash table: '{table}'" \
             .format(secret=args.secret, table=args.table))
 
 def main():

@@ -11,20 +11,22 @@ pip3 install kubestash
 ## usage
 
 ```
-usage: kubestash [-h] [-p PROXY] [-v] [--trace] [-f] table secret
+usage: kubestash [-h] [-p PROXY] [-v] [--trace] [-f] {inject,push} ...
 
-pulls secrets from Credstash and stores them in Kubernetes secret
+push a Credstash table to a Kubernetes secret
 
 positional arguments:
-  table                 credstash table you want to pull credentials from
-  secret                name of the kubernetes secret you want to store
-                        secrets in
+  {inject,push}
+    inject              inject env variables into a Kubernetes deployment
+                        manifest, taken from a Kubernetes secret
+    push                push values from a Credstash table to a Kubernetes
+                        secret
 
 optional arguments:
   -h, --help            show this help message and exit
   -p PROXY, --proxy PROXY
-                        hostname of a kubernetes apiserver to use,
-                        for example: --proxy 127.0.0.1:8080
+                        hostname of a kubernetes apiserver to use, for
+                        example: --proxy 127.0.0.1:8080
   -v, --verbose         verbose output
   --trace               show the full stack trace when an SSLError happens
   -f, --force           replace a secret if it already exists
