@@ -58,11 +58,7 @@ and each container in DEPLOYMENT will now have each key-value from SECRET.
 
 ## Key interpolation between Credstash and Kubernetes.
 
-Kubernetes will only let you store secrets if the key conforms to DNS_SUBDOMAIN. [1]
-
-rfc1035/rfc1123 subdomain (DNS_SUBDOMAIN): One or more lowercase
-rfc1035/rfc1123 labels separated by '.' with a maximum length of 253
-characters [2]
+Kubernetes will only let you store secrets if the key conforms to DNS_SUBDOMAIN. [1] [2]
 
 So when we move your Credstash table to a Kubernetes secret, we do a simple conversion.
 
@@ -101,6 +97,7 @@ env:
 
 
 [1] https://kubernetes.io/docs/concepts/configuration/secret/
+
 [2] https://github.com/kubernetes/community/blob/master/contributors/design-proposals/identifiers.md
 
 ## known issues
