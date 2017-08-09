@@ -10,7 +10,7 @@ setup(
     'credstash',
     'urllib3',
   ],
-  version='0.6',
+  version='0.7',
   description='Push your Credstash secrets to Kubernetes.',
   author='David Hargat',
   author_email='davidmhargat@gmail.com',
