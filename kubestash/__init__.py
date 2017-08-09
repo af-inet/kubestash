@@ -57,6 +57,10 @@ def add_parser_inject(parent):
         default=[],
         type=str,
         help="specify one or more containers to insert env values into (default is all containers)")
+    parser.add_argument('-r', '--replace-only',
+        dest='replace_only',
+        action='store_true',
+        help='only replace secrets that are already found, useful for updating secrets to a new table')
     return parser
 
 def add_parser_push(parent):
@@ -182,13 +186,12 @@ def kube_patch_deployment(args, deployment):
     kube = kubernetes.client.AppsV1beta1Api()
     return kube.patch_namespaced_deployment(args.deployment, DEFAULT_NAMESPACE, deployment)
 
-def inject_secret(data, containers, env_name, secret_name, secret_key):
+def inject_secret(args, data, env_name, secret_key):
     """
     Takes a Kubernetes service deployment structure `data` and adds a secretKeyRef
     environment to any `containers` it finds by name in the deployment.
     The secret is made up of:
     `env_name` - the name of the environment variable to add to the container
-    `secret_name` - the name of the secret in kubernetes
     `secret_key` - the key for the secret in kubernetes
     """
     # see: https://kubernetes.io/docs/concepts/configuration/secret/#using-secrets-as-environment-variables
@@ -197,14 +200,25 @@ def inject_secret(data, containers, env_name, secret_name, secret_key):
         env_name,
         value_from = kubernetes.client.V1EnvVarSource(
             secret_key_ref = kubernetes.client.V1SecretKeySelector(
-                name = secret_name,
+                name = args.secret,
                 key = secret_key
             )
         )
     )
     for container in data.spec.template.spec.containers:
         # if no containers are passed in, we're inserting into all containers.
-        if (len(containers)==0) or (container.name in containers):
+        if (len(args.container)==0) or (container.name in args.container):
+            # -r --replace-only
+            if args.replace_only:
+                # find envs that have the same name
+                matches = [
+                    env
+                    for env in container.env
+                        if env.name == new_env.name
+                ]
+                # if we don't have any matches, skip this key
+                if len(matches) == 0:
+                    continue
             # filter out any ENV's that collide with our new secret.
             # (this means the new env will replace any old envs of the same name)
             container.env = [
@@ -226,17 +240,21 @@ def cmd_inject(args):
     secrets = kube_read_secret(args).data
     # inject each secert into the deployment file as an environment variable
     for key in secrets:
-        inject_secret(deployment, args.container, reverse_dns_subdomain(key), args.secret, key)
+        inject_secret(args, deployment, reverse_dns_subdomain(key), key)
     # TODO: implement a diff here so we can inform the use if they actually changed anything.
-    kube_patch_deployment(args, {
+    data = {
         "spec": {
             "template": {
                 "spec": {
-                    "containers": deployment.spec.template.spec.containers
+                    "containers": [
+                        { "name": container.name, "env": container.env }
+                        for container in deployment.spec.template.spec.containers
+                    ]
                 }
             }
         }
-    })
+    }
+    kube_patch_deployment(args, data)
     print("Injected environment variables into deployment: '{deployment}' from secret: '{secret}'" \
         .format(deployment=args.deployment, secret=args.secret))
 
