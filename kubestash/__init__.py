@@ -140,7 +140,7 @@ def kube_init_secret(name, data):
         for key in data
     }
     metadata = kubernetes.client.V1ObjectMeta(name=name)
-    return kubernetes.client.V1Secret(data=converted_data, type="generic", metadata=metadata)
+    return kubernetes.client.V1Secret(data=converted_data, type="Opaque", metadata=metadata)
 
 def kube_create_secret(args, data):
     """ Creates a Kubernetes secret. Returns the api response from Kubernetes."""
