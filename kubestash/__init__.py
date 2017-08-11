@@ -83,7 +83,7 @@ def parse_args():
     # https://docs.python.org/3/library/argparse.html
     help_text = "push a Credstash table to a Kubernetes secret"
 
-    parser = argparse.ArgumentParser(description=help_text, parents=[base_parser()])
+    parser = argparse.ArgumentParser(description=help_text)
 
     parsers = parser.add_subparsers(dest='cmd')
     parsers.required = True
