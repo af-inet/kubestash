@@ -98,6 +98,9 @@ def parse_args():
 def credstash_getall(args):
     """ Returns an object containing all your Credstash secrets from `args.table`. """
     # https://github.com/fugue/credstash/blob/master/credstash.py#L297
+    if args.verbose:
+        print("fetching your secrets from '{table}' (Credstash is slow, this may take a few minutes...)"
+            .format(table=args.table))
     session_params = credstash.get_session_params(None, None)
     secrets = credstash.getAllSecrets("",
         region=DEFAULT_REGION,
@@ -268,6 +271,11 @@ def cmd_inject(args):
 
 def cmd_push(args):
     """ Pulls values from a Credstash table and stores them in a Kubernetes secret. """
+
+    if args.verbose:
+        print("checking that '{secret}' exists..."
+            .format(secret=args.secret))
+
     if kube_secret_exists(args):
         if not args.force:
             print("Kubernetes Secret: '{secret}' already exists, run with -f to replace it." \
@@ -290,9 +298,13 @@ def main():
     # loading the config file from KUBECONFIG is broken in kubernetes-incubator/client-python
     # for whatever reason, so you know TODO: PR for them to fix this.
     # Loading it here will fix this issue for now.
-    config_file = os.environ.get('KUBECONFIG', '~/.kube/config')
+    config_file = os.path.expanduser(os.environ.get('KUBECONFIG', '~/.kube/config'))
 
     kubernetes.config.load_kube_config(config_file=config_file)
+
+    if args.verbose:
+        print("loaded kubernetes config at: '{config_file}'"
+            .format(config_file=config_file))
 
     # override the host if the user passes in a --proxy
     if args.proxy and (len(args.proxy) == 1):
@@ -324,6 +336,16 @@ def main():
                    "\tbrew install python3 --with-brewed-openssl\n")
                 .format(ssl_version=ssl.OPENSSL_VERSION, table=args.table, secret=args.secret))
             sys.exit(1)
+        elif (type(e.reason) is urllib3.exceptions.NewConnectionError) and not (args.trace):
+            print(("\nNewConnectionError: run with --trace to see the original exception which caused this error\n\n"
+                   "Failed to connect to '{host}'.\n\n"
+                   "- is env KUBECONFIG set to the correct value '{config_file}' ?\n\n"
+                   "- is your cluster.server (in '{config_file}') set to the right host ?\n\n"
+                   "- is your apiserver reachable ?\n\n"
+                   "use --proxy HOST to override the host if neccesary\n")
+                .format(
+                    host=kubernetes.client.configuration.host,
+                    config_file=config_file))
         else:
             raise
 
