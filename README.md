@@ -11,25 +11,18 @@ pip3 install kubestash
 ## usage
 
 ```
-usage: kubestash [-h] [-p PROXY] [-v] [--trace] [-f] {inject,push} ...
+usage: kubestash [-h] {inject,push} ...
 
 push a Credstash table to a Kubernetes secret
 
 positional arguments:
   {inject,push}
-    inject              inject env variables into a Kubernetes deployment
-                        manifest, taken from a Kubernetes secret
-    push                push values from a Credstash table to a Kubernetes
-                        secret
+    inject       inject env variables into a Kubernetes deployment manifest,
+                 taken from a Kubernetes secret
+    push         push values from a Credstash table to a Kubernetes secret
 
 optional arguments:
-  -h, --help            show this help message and exit
-  -p PROXY, --proxy PROXY
-                        hostname of a kubernetes apiserver to use, for
-                        example: --proxy 127.0.0.1:8080
-  -v, --verbose         verbose output
-  --trace               show the full stack trace when an SSLError happens
-  -f, --force           replace a secret if it already exists
+  -h, --help     show this help message and exit
 ```
 
 ## Use Case
