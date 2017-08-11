@@ -4,6 +4,7 @@ import json
 import sys
 import urllib3
 import ssl
+import os
 
 import kubernetes
 import credstash
@@ -286,8 +287,12 @@ def cmd_push(args):
 def main():
     args = parse_args()
 
-    # load the users config file
-    kubernetes.config.load_kube_config()
+    # loading the config file from KUBECONFIG is broken in kubernetes-incubator/client-python
+    # for whatever reason, so you know TODO: PR for them to fix this.
+    # Loading it here will fix this issue for now.
+    config_file = os.environ.get('KUBECONFIG', '~/.kube/config')
+
+    kubernetes.config.load_kube_config(config_file=config_file)
 
     # override the host if the user passes in a --proxy
     if args.proxy and (len(args.proxy) == 1):
