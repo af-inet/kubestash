@@ -5,17 +5,10 @@ import sys
 import urllib3
 import ssl
 import os
-
 import kubernetes
 import credstash
 
-DEFAULT_REGION = "us-east-1"
-DEFAULT_NAMESPACE = "default"
-
-# TODO: args.namespace
 # TODO: args.profile, args.arn
-# TODO: args.region
-# TODO: args.context
 # TODO: args.version
 
 def base_parser():
@@ -38,6 +31,12 @@ def base_parser():
         dest='force',
         action='store_true',
         help='replace a secret if it already exists')
+    parser.add_argument('-n', '--namespace',
+        dest='namespace',
+        action='store',
+        type=str,
+        default='default',
+        help='kubernetes namespace')
     return parser
 
 def add_parser_inject(parent):
@@ -77,6 +76,18 @@ def add_parser_push(parent):
         action='store',
         type=str,
         help='Kubernetes secret you want to push values in')
+    parser.add_argument('-c', '--context',
+        dest='context',
+        action='store',
+        type=str,
+        default=None,
+        help='kubernetes context')
+    parser.add_argument('-r', '--region',
+        dest='region',
+        action='store',
+        type=str,
+        default=None,
+        help='aws region')
     return parser
 
 def parse_args():
@@ -93,6 +104,7 @@ def parse_args():
     add_parser_push(parsers)
 
     args = parser.parse_args()
+
     return args
 
 def credstash_getall(args):
@@ -102,10 +114,10 @@ def credstash_getall(args):
         print("fetching your secrets from '{table}' (Credstash is slow, this may take a few minutes...)"
             .format(table=args.table))
     session_params = credstash.get_session_params(None, None)
-    secrets = credstash.getAllSecrets("",
-        region=DEFAULT_REGION,
+    secrets = credstash.getAllSecrets('',
+        region=args.region,
         table=args.table,
-        context=None,
+        context=args.context,
         **session_params)
     return secrets
 
@@ -151,14 +163,14 @@ def kube_create_secret(args, data):
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#create_namespaced_secret
     kube = kubernetes.client.CoreV1Api()
     body = kube_init_secret(args.secret, data)
-    return kube.create_namespaced_secret(DEFAULT_NAMESPACE, body)
+    return kube.create_namespaced_secret(args.namespace, body)
 
 def kube_replace_secret(args, data):
     """ Replaces a kubernetes secret. Returns the api response from Kubernetes. """
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#replace_namespaced_secret
     kube = kubernetes.client.CoreV1Api()
     body = kube_init_secret(args.secret, data)
-    return kube.replace_namespaced_secret(args.secret, DEFAULT_NAMESPACE, body)
+    return kube.replace_namespaced_secret(args.secret, args.namespace, body)
 
 def kube_secret_exists(args):
     """ Returns True or False if a Kubernetes secret exists or not respectively. """
@@ -166,7 +178,7 @@ def kube_secret_exists(args):
     kube = kubernetes.client.CoreV1Api()
     try:
         # TODO: might be better to call list_namespaced_secrets here.
-        response = kube.read_namespaced_secret(args.secret, DEFAULT_NAMESPACE)
+        response = kube.read_namespaced_secret(args.secret, args.namespace)
     except kubernetes.client.rest.ApiException as e:
         if e.status == 404:
             return False # 404 means the secret did not exist, so we can return False
@@ -177,18 +189,18 @@ def kube_secret_exists(args):
 def kube_read_secret(args):
     """ Returns the full contents of a Kubernetes secret. """
     kube = kubernetes.client.CoreV1Api()
-    return kube.read_namespaced_secret(args.secret, DEFAULT_NAMESPACE)
+    return kube.read_namespaced_secret(args.secret, args.namespace)
 
 def kube_read_deployment(args):
     """ Returns the full contents of Kubernetes deployment. """
     kube = kubernetes.client.AppsV1beta1Api()
-    response = kube.read_namespaced_deployment(args.deployment, DEFAULT_NAMESPACE)
+    response = kube.read_namespaced_deployment(args.deployment, args.namespace)
     return response
 
 def kube_patch_deployment(args, deployment):
     """ Patches a Kubernetes deployment with data `deployment`. Returns the full contents of the patched deployment. """
     kube = kubernetes.client.AppsV1beta1Api()
-    return kube.patch_namespaced_deployment(args.deployment, DEFAULT_NAMESPACE, deployment)
+    return kube.patch_namespaced_deployment(args.deployment, args.namespace, deployment)
 
 def init_env(name, secret_name, secret_key):
     """
