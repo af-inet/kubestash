@@ -11,6 +11,7 @@ import credstash
 # TODO: args.profile, args.arn
 # TODO: args.version
 
+
 def base_parser():
     ''' Parses arguments shared by every subcommand. '''
     parser = argparse.ArgumentParser(add_help=False)
@@ -39,6 +40,7 @@ def base_parser():
         help='kubernetes namespace')
     return parser
 
+
 def add_parser_inject(parent):
     ''' Parses arguments for the inject command. '''
     parser = parent.add_parser('inject',
@@ -62,6 +64,7 @@ def add_parser_inject(parent):
         action='store_true',
         help='only update envs that are already present (do not append), useful for updating envs to point to a different secret')
     return parser
+
 
 def add_parser_push(parent):
     ''' Parses arguments for the push command. '''
@@ -90,6 +93,7 @@ def add_parser_push(parent):
         help='aws region')
     return parser
 
+
 def parse_args():
     ''' Parses command line arguments. '''
     # https://docs.python.org/3/library/argparse.html
@@ -107,6 +111,7 @@ def parse_args():
 
     return args
 
+
 def credstash_getall(args):
     ''' Returns an object containing all your Credstash secrets from `args.table`. '''
     # https://github.com/fugue/credstash/blob/master/credstash.py#L297
@@ -120,6 +125,7 @@ def credstash_getall(args):
         context=args.context,
         **session_params)
     return secrets
+
 
 def dns_subdomain(string):
     '''
@@ -136,9 +142,11 @@ def dns_subdomain(string):
     '''
     return string.replace('_', '-').lower()
 
+
 def reverse_dns_subdomain(string):
     ''' The opposite of dns_subdomain, convert secret-style strings to ENV_VARIABLE style strings. '''
     return string.replace('-', '_').upper()
+
 
 def kube_init_secret(name, data):
     '''
@@ -158,6 +166,7 @@ def kube_init_secret(name, data):
     metadata = kubernetes.client.V1ObjectMeta(name=name)
     return kubernetes.client.V1Secret(data=converted_data, type='Opaque', metadata=metadata)
 
+
 def kube_create_secret(args, data):
     ''' Creates a Kubernetes secret. Returns the api response from Kubernetes.'''
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#create_namespaced_secret
@@ -165,12 +174,14 @@ def kube_create_secret(args, data):
     body = kube_init_secret(args.secret, data)
     return kube.create_namespaced_secret(args.namespace, body)
 
+
 def kube_replace_secret(args, data):
     ''' Replaces a kubernetes secret. Returns the api response from Kubernetes. '''
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#replace_namespaced_secret
     kube = kubernetes.client.CoreV1Api()
     body = kube_init_secret(args.secret, data)
     return kube.replace_namespaced_secret(args.secret, args.namespace, body)
+
 
 def kube_secret_exists(args):
     ''' Returns True or False if a Kubernetes secret exists or not respectively. '''
@@ -186,10 +197,12 @@ def kube_secret_exists(args):
             raise # don't catch errors you can't resolve.
     return True
 
+
 def kube_read_secret(args):
     ''' Returns the full contents of a Kubernetes secret. '''
     kube = kubernetes.client.CoreV1Api()
     return kube.read_namespaced_secret(args.secret, args.namespace)
+
 
 def kube_read_deployment(args):
     ''' Returns the full contents of Kubernetes deployment. '''
@@ -197,10 +210,12 @@ def kube_read_deployment(args):
     response = kube.read_namespaced_deployment(args.deployment, args.namespace)
     return response
 
+
 def kube_patch_deployment(args, deployment):
     ''' Patches a Kubernetes deployment with data `deployment`. Returns the full contents of the patched deployment. '''
     kube = kubernetes.client.AppsV1beta1Api()
     return kube.patch_namespaced_deployment(args.deployment, args.namespace, deployment)
+
 
 def init_env(name, secret_name, secret_key):
     ''' Initialize a Kubernetes env PATCH structure (dict). '''
@@ -217,6 +232,7 @@ def init_env(name, secret_name, secret_key):
         }
     }
     return obj
+
 
 def init_envs_for_container(args, secrets, container):
     '''
@@ -246,6 +262,7 @@ def init_envs_for_container(args, secrets, container):
                 if env['name'] in container_env_names
         ]
     return envs
+
 
 def cmd_inject(args):
     '''
@@ -279,6 +296,7 @@ def cmd_inject(args):
     print('Injected environment variables into deployment: "{deployment}" from secret: "{secret}"' \
         .format(deployment=args.deployment, secret=args.secret))
 
+
 def cmd_push(args):
     ''' Pulls values from a Credstash table and stores them in a Kubernetes secret. '''
 
@@ -301,6 +319,7 @@ def cmd_push(args):
         kube_create_secret(args, data)
         print('Created Kubernetes Secret: "{secret}" with Credstash table: "{table}"' \
             .format(secret=args.secret, table=args.table))
+
 
 def main():
     args = parse_args()
