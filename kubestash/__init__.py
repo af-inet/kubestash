@@ -1,6 +1,5 @@
 import argparse
 import base64
-import json
 import sys
 import urllib3
 import ssl
@@ -8,94 +7,97 @@ import os
 import kubernetes
 import credstash
 
+
 # TODO: args.profile, args.arn
 # TODO: args.version
 
 
 def base_parser():
-    ''' Parses arguments shared by every subcommand. '''
+    """ Parses arguments shared by every subcommand. """
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('-p', '--proxy',
-        action='store',
-        type=str,
-        nargs=1,
-        help='hostname of a kubernetes apiserver to use, for example: --proxy 127.0.0.1:8080')
+                        action='store',
+                        type=str,
+                        nargs=1,
+                        help='hostname of a kubernetes apiserver to use, for example: --proxy 127.0.0.1:8080')
     parser.add_argument('-v', '--verbose',
-        dest='verbose',
-        action='store_true',
-        help='verbose output')
+                        dest='verbose',
+                        action='store_true',
+                        help='verbose output')
     parser.add_argument('--trace',
-        dest='trace',
-        action='store_true',
-        help='show the full stack trace when an SSLError happens')
+                        dest='trace',
+                        action='store_true',
+                        help='show the full stack trace when an SSLError happens')
     parser.add_argument('-f', '--force',
-        dest='force',
-        action='store_true',
-        help='replace a secret if it already exists')
+                        dest='force',
+                        action='store_true',
+                        help='replace a secret if it already exists')
     parser.add_argument('-n', '--namespace',
-        dest='namespace',
-        action='store',
-        type=str,
-        default='default',
-        help='kubernetes namespace')
+                        dest='namespace',
+                        action='store',
+                        type=str,
+                        default='default',
+                        help='kubernetes namespace')
     return parser
 
 
 def add_parser_inject(parent):
-    ''' Parses arguments for the inject command. '''
+    """ Parses arguments for the inject command. """
     parser = parent.add_parser('inject',
-        parents = [base_parser()],
-        help='inject env variables into a Kubernetes deployment manifest, taken from a Kubernetes secret')
+                               parents=[base_parser()],
+                               help='inject env variables into a Kubernetes deployment manifest, '
+                                    'taken from a Kubernetes secret')
     parser.add_argument('secret',
-        action='store',
-        type=str,
-        help='Kubernetes secret you want to take values from')
+                        action='store',
+                        type=str,
+                        help='Kubernetes secret you want to take values from')
     parser.add_argument('deployment',
-        action='store',
-        type=str,
-        help='Kubernetes deployment to inject env values into')
+                        action='store',
+                        type=str,
+                        help='Kubernetes deployment to inject env values into')
     parser.add_argument('-c', '--container',
-        action='append',
-        default=[],
-        type=str,
-        help='specify one or more containers to insert env values into (default is all containers)')
+                        action='append',
+                        default=[],
+                        type=str,
+                        help='specify one or more containers to insert env values into (default is all containers)')
     parser.add_argument('-u', '--update-only',
-        dest='update_only',
-        action='store_true',
-        help='only update envs that are already present (do not append), useful for updating envs to point to a different secret')
+                        dest='update_only',
+                        action='store_true',
+                        help='only update envs that are already present (do not append), useful for updating envs to '
+                             'point to a different secret')
     return parser
 
 
 def add_parser_push(parent):
-    ''' Parses arguments for the push command. '''
+    """ Parses arguments for the push command. """
     parser = parent.add_parser('push',
-        parents = [base_parser()],
-        help='push values from a Credstash table to a Kubernetes secret')
+                               parents=[base_parser()],
+                               help='push values from a Credstash table to a Kubernetes secret')
     parser.add_argument('table',
-        action='store',
-        type=str,
-        help='Credstash table you want to pull values from')
+                        action='store',
+                        type=str,
+                        help='Credstash table you want to pull values from')
     parser.add_argument('secret',
-        action='store',
-        type=str,
-        help='Kubernetes secret you want to push values in')
+                        action='store',
+                        type=str,
+                        help='Kubernetes secret you want to push values in')
     parser.add_argument('-c', '--context',
-        dest='context',
-        action='store',
-        type=str,
-        default=None,
-        help='kubernetes context')
+                        dest='context',
+                        action='store',
+                        type=str,
+                        default=None,
+                        help='kubernetes context')
     parser.add_argument('-r', '--region',
-        dest='region',
-        action='store',
-        type=str,
-        default=None,
-        help='aws region')
+                        dest='region',
+                        action='store',
+                        type=str,
+                        default=None,
+                        help='aws region')
     return parser
 
 
 def parse_args():
-    ''' Parses command line arguments. '''
+    """ Parses command line arguments. """
     # https://docs.python.org/3/library/argparse.html
     help_text = 'push a Credstash table to a Kubernetes secret'
 
@@ -113,22 +115,22 @@ def parse_args():
 
 
 def credstash_getall(args):
-    ''' Returns an object containing all your Credstash secrets from `args.table`. '''
+    """ Returns an object containing all your Credstash secrets from `args.table`. """
     # https://github.com/fugue/credstash/blob/master/credstash.py#L297
     if args.verbose:
-        print('fetching your secrets from "{table}" (Credstash is slow, this may take a few minutes...)'
-            .format(table=args.table))
+        print('fetching your secrets from "{table}" '
+              '(Credstash is slow, this may take a few minutes...)'.format(table=args.table))
     session_params = credstash.get_session_params(None, None)
     secrets = credstash.getAllSecrets('',
-        region=args.region,
-        table=args.table,
-        context=args.context,
-        **session_params)
+                                      region=args.region,
+                                      table=args.table,
+                                      context=args.context,
+                                      **session_params)
     return secrets
 
 
 def dns_subdomain(string):
-    '''
+    """
     Converts an ENV_VARIABLE style string to a secret-style string.
     This should be used to convert Credstash secret keys to Kubernetes secret keys.
     Explanation:
@@ -139,24 +141,24 @@ def dns_subdomain(string):
         characters [2]
     [1] https://kubernetes.io/docs/concepts/configuration/secret/
     [2] https://github.com/kubernetes/community/blob/master/contributors/design-proposals/identifiers.md
-    '''
+    """
     return string.replace('_', '-').lower()
 
 
 def reverse_dns_subdomain(string):
-    ''' The opposite of dns_subdomain, convert secret-style strings to ENV_VARIABLE style strings. '''
+    """ The opposite of dns_subdomain, convert secret-style strings to ENV_VARIABLE style strings. """
     return string.replace('-', '_').upper()
 
 
 def kube_init_secret(name, data):
-    '''
+    """
     Initialize a Kubernetes secret object (only in memory).
     Data contains the secret data. Each key must consist of alphanumeric
     characters, '-', '_' or '.'. The serialized form of the secret data
     is a base64 encoded string, representing the arbitrary
     (possibly non-string) data value here.
     [1] https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/V1Secret.md
-    '''
+    """
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/V1Secret.md
     # api_version, data, kind, metadata, string_data, type
     converted_data = {
@@ -168,7 +170,7 @@ def kube_init_secret(name, data):
 
 
 def kube_create_secret(args, data):
-    ''' Creates a Kubernetes secret. Returns the api response from Kubernetes.'''
+    """ Creates a Kubernetes secret. Returns the api response from Kubernetes."""
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#create_namespaced_secret
     kube = kubernetes.client.CoreV1Api()
     body = kube_init_secret(args.secret, data)
@@ -176,7 +178,7 @@ def kube_create_secret(args, data):
 
 
 def kube_replace_secret(args, data):
-    ''' Replaces a kubernetes secret. Returns the api response from Kubernetes. '''
+    """ Replaces a kubernetes secret. Returns the api response from Kubernetes. """
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#replace_namespaced_secret
     kube = kubernetes.client.CoreV1Api()
     body = kube_init_secret(args.secret, data)
@@ -184,41 +186,41 @@ def kube_replace_secret(args, data):
 
 
 def kube_secret_exists(args):
-    ''' Returns True or False if a Kubernetes secret exists or not respectively. '''
+    """ Returns True or False if a Kubernetes secret exists or not respectively. """
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#read_namespaced_secret
     kube = kubernetes.client.CoreV1Api()
     try:
         # TODO: might be better to call list_namespaced_secrets here.
-        response = kube.read_namespaced_secret(args.secret, args.namespace)
+        kube.read_namespaced_secret(args.secret, args.namespace)
     except kubernetes.client.rest.ApiException as e:
         if e.status == 404:
-            return False # 404 means the secret did not exist, so we can return False
+            return False  # 404 means the secret did not exist, so we can return False
         else:
-            raise # don't catch errors you can't resolve.
+            raise  # don't catch errors you can't resolve.
     return True
 
 
 def kube_read_secret(args):
-    ''' Returns the full contents of a Kubernetes secret. '''
+    """ Returns the full contents of a Kubernetes secret. """
     kube = kubernetes.client.CoreV1Api()
     return kube.read_namespaced_secret(args.secret, args.namespace)
 
 
 def kube_read_deployment(args):
-    ''' Returns the full contents of Kubernetes deployment. '''
+    """ Returns the full contents of Kubernetes deployment. """
     kube = kubernetes.client.AppsV1beta1Api()
     response = kube.read_namespaced_deployment(args.deployment, args.namespace)
     return response
 
 
 def kube_patch_deployment(args, deployment):
-    ''' Patches a Kubernetes deployment with data `deployment`. Returns the full contents of the patched deployment. '''
+    """ Patches a Kubernetes deployment with data `deployment`. Returns the full contents of the patched deployment. """
     kube = kubernetes.client.AppsV1beta1Api()
     return kube.patch_namespaced_deployment(args.deployment, args.namespace, deployment)
 
 
 def init_env(name, secret_name, secret_key):
-    ''' Initialize a Kubernetes env PATCH structure (dict). '''
+    """ Initialize a Kubernetes env PATCH structure (dict). """
     # see: https://kubernetes.io/docs/concepts/configuration/secret/#using-secrets-as-environment-variables
     # create a new env structure
     obj = {
@@ -235,11 +237,11 @@ def init_env(name, secret_name, secret_key):
 
 
 def init_envs_for_container(args, secrets, container):
-    '''
+    """
     Initialize a set of envs to PATCH to a container
     if `--update-only` is specified, we only return envs
     which are already present inside the container.
-    '''
+    """
     # initialize a list of envs to PATCH to kubernetes
     envs = [
         init_env(
@@ -259,16 +261,16 @@ def init_envs_for_container(args, secrets, container):
         envs = [
             env
             for env in envs
-                if env['name'] in container_env_names
+            if env['name'] in container_env_names
         ]
     return envs
 
 
 def cmd_inject(args):
-    '''
+    """
     Pulls values from a Kubernetes secret and injects them into a deployment as environment variables.
     There may be multiple containers in a single deployment, so we inject into all of them.
-    '''
+    """
     # read the original deployment file
     deployment = kube_read_deployment(args)
     # read the secrets
@@ -285,40 +287,38 @@ def cmd_inject(args):
                             'env': init_envs_for_container(args, secrets, container)
                         }
                         for container in deployment.spec.template.spec.containers
-                            # if no --container is passed in, we inject in every container
-                            if (container.name in args.container) or (len(args.container) == 0)
+                        # if no --container is passed in, we inject in every container
+                        if (container.name in args.container) or (len(args.container) == 0)
                     ]
                 }
             }
         }
     }
     kube_patch_deployment(args, data)
-    print('Injected environment variables into deployment: "{deployment}" from secret: "{secret}"' \
-        .format(deployment=args.deployment, secret=args.secret))
+    print('Injected environment variables into deployment: "{deployment}" '
+          'from secret: "{secret}"'.format(deployment=args.deployment, secret=args.secret))
 
 
 def cmd_push(args):
-    ''' Pulls values from a Credstash table and stores them in a Kubernetes secret. '''
+    """ Pulls values from a Credstash table and stores them in a Kubernetes secret. """
 
     if args.verbose:
-        print('checking that "{secret}" exists...'
-            .format(secret=args.secret))
+        print('checking that "{secret}" exists...'.format(secret=args.secret))
 
     if kube_secret_exists(args):
         if not args.force:
-            print('Kubernetes Secret: "{secret}" already exists, run with -f to replace it.' \
-                .format(secret=args.secret))
+            print('Kubernetes Secret: "{secret}" already exists, run with -f to replace it.'.format(secret=args.secret))
             sys.exit(1)
         else:
             data = credstash_getall(args)
             kube_replace_secret(args, data)
-            print('Replaced Kubernetes Secret: "{secret}" with Credstash table: "{table}"' \
-                .format(secret=args.secret, table=args.table))
+            print('Replaced Kubernetes Secret: "{secret}" with Credstash table: "{table}"'.format(secret=args.secret,
+                                                                                                  table=args.table))
     else:
         data = credstash_getall(args)
         kube_create_secret(args, data)
-        print('Created Kubernetes Secret: "{secret}" with Credstash table: "{table}"' \
-            .format(secret=args.secret, table=args.table))
+        print('Created Kubernetes Secret: "{secret}" with Credstash table: "{table}"'.format(table=args.table,
+                                                                                             secret=args.secret))
 
 
 def main():
@@ -332,8 +332,7 @@ def main():
     kubernetes.config.load_kube_config(config_file=config_file)
 
     if args.verbose:
-        print('loaded kubernetes config at: "{config_file}"'
-            .format(config_file=config_file))
+        print('loaded kubernetes config at: "{config_file}"'.format(config_file=config_file))
 
     # override the host if the user passes in a --proxy
     if args.proxy and (len(args.proxy) == 1):
@@ -347,13 +346,15 @@ def main():
         else:
             pass
     except urllib3.exceptions.MaxRetryError as e:
-        if (type(e.reason) is urllib3.exceptions.SSLError) and not (args.trace):
+        if (type(e.reason) is urllib3.exceptions.SSLError) and not args.trace:
             # This will be a very common error since the python that ships with macOS
             # seems to be stuck on openssl v0.9.8, so lets show the users how to fix it.
-            # Kubernetes seems to be aware of this issue: https://github.com/kubernetes-incubator/client-python#sslerror-on-macos
+            # Kubernetes seems to be aware of this issue:
+            # https://github.com/kubernetes-incubator/client-python#sslerror-on-macos
             #
             print(('\nSSLError: run with --trace to see the original exception which caused this error.\n\n'
-                   'This version of python is compiled with "{ssl_version}" - while Kubernetes requires at least version 1.0.0!\n\n'
+                   'This version of python is compiled with "{ssl_version}" - '
+                   'while Kubernetes requires at least version 1.0.0!\n\n'
                    'You can fix this by running:\n\n'
                    '\tkubectl proxy -p 8080\n\n'
                    '\tkubestash --proxy 127.0.0.1:8080 {table} {secret}\n\n'
@@ -362,19 +363,20 @@ def main():
                    '\tbrew update\n'
                    '\tbrew install openssl\n'
                    '\tbrew uninstall python3\n'
-                   '\tbrew install python3 --with-brewed-openssl\n')
-                .format(ssl_version=ssl.OPENSSL_VERSION, table=args.table, secret=args.secret))
+                   '\tbrew install python3 --with-brewed-openssl\n'
+                   ).format(ssl_version=ssl.OPENSSL_VERSION,
+                            table=args.table,
+                            secret=args.secret))
             sys.exit(1)
-        elif (type(e.reason) is urllib3.exceptions.NewConnectionError) and not (args.trace):
+        elif (type(e.reason) is urllib3.exceptions.NewConnectionError) and not args.trace:
             print(('\nNewConnectionError: run with --trace to see the original exception which caused this error\n\n'
                    'Failed to connect to "{host}".\n\n'
                    '- is env KUBECONFIG set to the correct value "{config_file}" ?\n\n'
                    '- is your cluster.server (in "{config_file}") set to the right host ?\n\n'
                    '- is your apiserver reachable ?\n\n'
-                   'use --proxy HOST to override the host if neccesary\n')
-                .format(
-                    host=kubernetes.client.configuration.host,
-                    config_file=config_file))
+                   'use --proxy HOST to override the host if neccesary\n'
+                   ).format(host=kubernetes.client.configuration.host,
+                            config_file=config_file))
         else:
             raise
 
