@@ -377,6 +377,7 @@ def main():
                    'use --proxy HOST to override the host if neccesary\n'
                    ).format(host=kubernetes.client.configuration.host,
                             config_file=config_file))
+            sys.exit(1)
         else:
             raise
 
