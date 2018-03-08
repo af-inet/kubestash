@@ -25,7 +25,7 @@ optional arguments:
   -h, --help     show this help message and exit
 ```
 
-## Use Case
+## use case
 
 `kubestash` is only useful in certain use cases with Kubernetes + Credstash.
 
@@ -45,11 +45,11 @@ and you'll have a kubernetes SECRET which maps 1:1 (with some interpolation, see
 
 Instead of writing a ton of yaml to inject your secrets into each container, simply run:
 
-`kubestash push SECRET DEPLOYMENT`
+`kubestash inject SECRET DEPLOYMENT`
 
 and each container in DEPLOYMENT will now have each key-value from SECRET.
 
-## Key interpolation between Credstash and Kubernetes.
+## key interpolation between credstash and kubernetes.
 
 Kubernetes will only let you store secrets if the key conforms to DNS_SUBDOMAIN. [1] [2]
 
