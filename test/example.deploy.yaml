@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example
+  labels:
+    app: example
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: example
+  template:
+    metadata:
+      labels:
+        app: example
+    spec:
+      containers:
+      - name: example
+        image: alpine:3.6
+
+        # print out the environment variables and then sleep
+        command: ["/bin/sh", "-c"]
+        args: ['env && sleep 10000']
+
+        # takes everything from a secret called "kubestash" and puts it in env
+        envFrom:
+        - secretRef:
+            name: kubestash
+
+        # you can also override variables if you need to
+        # deviate from whats in secrets
+        env:
+        - name: FOO
+          value: REALBAR

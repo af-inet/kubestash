@@ -10,7 +10,6 @@ import credstash
 
 # TODO: args.profile, args.arn
 # TODO: args.version
-# TODO: inject should support editing a local file, for those who version control their Kubernetes manifests
 
 
 def base_parser():
@@ -44,7 +43,7 @@ def base_parser():
                         action='store_true',
                         help='For SECRET keys, lowercase and convert "_" to "-" (DNS_SUBDOMAIN). '
                              'Useful for compatibility with older Kubernetes versions. '
-                             '(deprecated).')
+                             '(DEPRECATED).')
     return parser
 
 
@@ -53,7 +52,7 @@ def add_parser_inject(parent):
     parser = parent.add_parser('inject',
                                parents=[base_parser()],
                                help='inject env variables into a Kubernetes deployment manifest, '
-                                    'taken from a Kubernetes secret')
+                                    'taken from a Kubernetes secret (DEPRECATED; see README.md, use envFrom instead)')
     parser.add_argument('secret',
                         action='store',
                         type=str,
@@ -312,7 +311,7 @@ def cmd_inject(args):
         }
     }
     kube_patch_deployment(args, data)
-    print('Injected environment variables into deployment: "{deployment}" '
+    print('inject is DEPRECATED; see README.md, use envFrom instead)\n\nInjected environment variables into deployment: "{deployment}" '
           'from secret: "{secret}"'.format(deployment=args.deployment, secret=args.secret))
 
 
