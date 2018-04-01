@@ -10,6 +10,7 @@ import credstash
 
 # TODO: args.profile, args.arn
 # TODO: args.version
+# TODO: inject should support editing a local file, for those who version control their Kubernetes manifests
 
 
 def base_parser():
@@ -38,6 +39,12 @@ def base_parser():
                         type=str,
                         default='default',
                         help='kubernetes namespace')
+    parser.add_argument('-l', '--lowercase',
+                        dest='lowercase',
+                        action='store_true',
+                        help='For SECRET keys, lowercase and convert "_" to "-" (DNS_SUBDOMAIN). '
+                             'Useful for compatibility with older Kubernetes versions. '
+                             '(deprecated).')
     return parser
 
 
@@ -145,12 +152,22 @@ def dns_subdomain(string):
     return string.replace('_', '-').lower()
 
 
+def maybe_dns_subdomain(args, string):
+    """Only convert to dns_subdomain if the --lowercase flag is set. """
+    return dns_subdomain(string) if args.lowercase else string
+
+
 def reverse_dns_subdomain(string):
     """ The opposite of dns_subdomain, convert secret-style strings to ENV_VARIABLE style strings. """
     return string.replace('-', '_').upper()
 
 
-def kube_init_secret(name, data):
+def maybe_reverse_dns_subdomain(args, string):
+    """Only convert from dns_subdomain if the --lowercase flag is set. """
+    return reverse_dns_subdomain(string) if args.lowercase else string
+
+
+def kube_init_secret(args, data):
     """
     Initialize a Kubernetes secret object (only in memory).
     Data contains the secret data. Each key must consist of alphanumeric
@@ -162,10 +179,10 @@ def kube_init_secret(name, data):
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/V1Secret.md
     # api_version, data, kind, metadata, string_data, type
     converted_data = {
-        dns_subdomain(key): base64.b64encode(data[key].encode('utf-8')).decode('utf-8')
+        maybe_dns_subdomain(args, key): base64.b64encode(data[key].encode('utf-8')).decode('utf-8')
         for key in data
     }
-    metadata = kubernetes.client.V1ObjectMeta(name=name)
+    metadata = kubernetes.client.V1ObjectMeta(name=args.secret)
     return kubernetes.client.V1Secret(data=converted_data, type='Opaque', metadata=metadata)
 
 
@@ -173,7 +190,7 @@ def kube_create_secret(args, data):
     """ Creates a Kubernetes secret. Returns the api response from Kubernetes."""
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#create_namespaced_secret
     kube = kubernetes.client.CoreV1Api()
-    body = kube_init_secret(args.secret, data)
+    body = kube_init_secret(args, data)
     return kube.create_namespaced_secret(args.namespace, body)
 
 
@@ -181,7 +198,7 @@ def kube_replace_secret(args, data):
     """ Replaces a kubernetes secret. Returns the api response from Kubernetes. """
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#replace_namespaced_secret
     kube = kubernetes.client.CoreV1Api()
-    body = kube_init_secret(args.secret, data)
+    body = kube_init_secret(args, data)
     return kube.replace_namespaced_secret(args.secret, args.namespace, body)
 
 
@@ -245,7 +262,7 @@ def init_envs_for_container(args, secrets, container):
     # initialize a list of envs to PATCH to kubernetes
     envs = [
         init_env(
-            reverse_dns_subdomain(key),
+            maybe_reverse_dns_subdomain(args, key),
             args.secret,
             key)
         for key in secrets
