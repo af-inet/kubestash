@@ -39,9 +39,9 @@ optional arguments:
 
 ```
 
-## adding envs to your deployment manifest
+## adding envs to your deployment
 
-add this to your container manifest to import your secret as environment variables
+add this to your container
 
 ```yaml
 envFrom:
