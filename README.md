@@ -2,6 +2,8 @@
 
 Push Credstash secrets to Kubernetes.
 
+https://hub.docker.com/r/afinet/kubestash/
+
 ## installing
 
 ```
