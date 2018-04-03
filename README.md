@@ -63,10 +63,15 @@ If the above is true for you, `kubestash` can help!
 
 Just run:
 
-`kubestash push TABLE SECRET`
+`kubestash push -v TABLE SECRET`
 
 and you'll have a Kubernetes SECRET which maps 1:1 with your Credstash TABLE.
 
+`kubestash daemon -v TABLE SECRET` will monitor DynamoDB for updates
+(using [DynamoDB Streams](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html)),
+and automatically trigger a push command when necessary.
+
+This is useful if you don't want to manually run the `push` command every time you update credstash.
 
 ## secret key constraints
 

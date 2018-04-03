@@ -1,11 +1,13 @@
 import argparse
 import base64
 import sys
+import time
 import urllib3
 import ssl
 import os
 import kubernetes
 import credstash
+import boto3
 
 
 # TODO: args.profile, args.arn
@@ -102,6 +104,42 @@ def add_parser_push(parent):
     return parser
 
 
+def add_parser_daemon(parent):
+    """ Parses arguments for the daemon command. """
+    parser = parent.add_parser('daemon',
+                               parents=[base_parser()],
+                               help='daemon mode; automatically runs a `kubestash push` whenever changes are '
+                                    'detected in DynamoDB. Requires DynamoDB Streams to be enabled for your table. '
+                                    'Implies -f --force.')
+    parser.add_argument('table',
+                        action='store',
+                        type=str,
+                        help='Credstash table you want to pull values from')
+    parser.add_argument('secret',
+                        action='store',
+                        type=str,
+                        help='Kubernetes secret you want to push values in')
+    parser.add_argument('-c', '--context',
+                        dest='context',
+                        action='store',
+                        type=str,
+                        default=None,
+                        help='kubernetes context')
+    parser.add_argument('-r', '--region',
+                        dest='region',
+                        action='store',
+                        type=str,
+                        default=None,
+                        help='aws region')
+    parser.add_argument('-i', '--interval',
+                        dest='interval',
+                        action='store',
+                        type=int,
+                        default=10,
+                        help='how long to sleep between shard iterations (seconds)')
+    return parser
+
+
 def parse_args():
     """ Parses command line arguments. """
     # https://docs.python.org/3/library/argparse.html
@@ -114,6 +152,7 @@ def parse_args():
 
     add_parser_inject(parsers)
     add_parser_push(parsers)
+    add_parser_daemon(parsers)
 
     args = parser.parse_args()
 
@@ -311,7 +350,8 @@ def cmd_inject(args):
         }
     }
     kube_patch_deployment(args, data)
-    print('inject is DEPRECATED; see README.md, use envFrom instead)\n\nInjected environment variables into deployment: "{deployment}" '
+    print('inject is DEPRECATED; see README.md, use envFrom instead)\n\n'
+          'Injected environment variables into deployment: "{deployment}" '
           'from secret: "{secret}"'.format(deployment=args.deployment, secret=args.secret))
 
 
@@ -323,18 +363,84 @@ def cmd_push(args):
 
     if kube_secret_exists(args):
         if not args.force:
-            print('Kubernetes Secret: "{secret}" already exists, run with -f to replace it.'.format(secret=args.secret))
+            print('kubernetes Secret: "{secret}" already exists, run with -f to replace it.'.format(secret=args.secret))
             sys.exit(1)
         else:
             data = credstash_getall(args)
             kube_replace_secret(args, data)
-            print('Replaced Kubernetes Secret: "{secret}" with Credstash table: "{table}"'.format(secret=args.secret,
+            print('replaced Kubernetes Secret: "{secret}" with Credstash table: "{table}"'.format(secret=args.secret,
                                                                                                   table=args.table))
     else:
         data = credstash_getall(args)
         kube_create_secret(args, data)
-        print('Created Kubernetes Secret: "{secret}" with Credstash table: "{table}"'.format(table=args.table,
+        print('created Kubernetes Secret: "{secret}" with Credstash table: "{table}"'.format(table=args.table,
                                                                                              secret=args.secret))
+
+
+def cmd_daemon(args):
+    # https://boto3.readthedocs.io/en/latest/reference/services/dynamodb.html
+    # https://boto3.readthedocs.io/en/latest/reference/services/dynamodbstreams.html
+    # TODO: what if there are more than 100 streams?
+
+    # -f --force is implied by daemon
+    args.force = True
+
+    client = boto3.client('dynamodbstreams')
+
+    response = client.list_streams(TableName=args.table, Limit=100)
+
+    if not response['Streams']:
+        print("fatal: no stream found for DynamoDB Table '{table}'.\n"
+              "ensure streams are enabled for your table:\n"
+              "\thttps://console.aws.amazon.com/dynamodb/home\n"
+              .format(table=args.table))
+        sys.exit(1)
+
+    # take the first stream we find... not sure if there are any caveats in doing this.
+    arn = response['Streams'][0]['StreamArn']
+
+    if args.verbose:
+        print("using DynamoDB Stream ARN: {arn}".format(arn=arn))
+
+    response = client.describe_stream(StreamArn=arn, Limit=100)
+
+    if not response['StreamDescription']['Shards']:
+        print("fatal: no shards found for DynamoDB stream '{arn}'.".format(arn=arn))
+        sys.exit(1)
+
+    shard_id = response['StreamDescription']['Shards'][0]['ShardId']
+
+    if args.verbose:
+        print("using DynamoDB Stream shard id: {shard_id}".format(shard_id=shard_id))
+
+    response = client.get_shard_iterator(StreamArn=arn, ShardId=shard_id, ShardIteratorType='LATEST')
+
+    shard_iterator = response['ShardIterator']
+
+    cmd_push(args)
+
+    if args.verbose:
+        print("checking DynamoDB Stream for changes...")
+
+    response = client.get_records(ShardIterator=shard_iterator, Limit=100)
+
+    if len(response['Records']) > 0:
+        if args.verbose:
+            print("detected DynamoDB changes, running push command...")
+        cmd_push(args)
+
+    time.sleep(args.interval)
+
+    while True:
+        shard_iterator = response['NextShardIterator']
+        if args.verbose:
+            print("checking DynamoDB Stream for changes...")
+        response = client.get_records(ShardIterator=shard_iterator, Limit=100)
+        if len(response['Records']) > 0:
+            if args.verbose:
+                print("detected DynamoDB changes, running push command...")
+            cmd_push(args)
+        time.sleep(args.interval)
 
 
 def main():
@@ -359,6 +465,8 @@ def main():
             cmd_push(args)
         elif args.cmd == 'inject':
             cmd_inject(args)
+        elif args.cmd == 'daemon':
+            cmd_daemon(args)
         else:
             pass
     except urllib3.exceptions.MaxRetryError as e:
