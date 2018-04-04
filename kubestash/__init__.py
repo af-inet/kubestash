@@ -46,7 +46,7 @@ def base_parser():
                         help='For SECRET keys, lowercase and convert "_" to "-" (DNS_SUBDOMAIN). '
                              'Useful for compatibility with older Kubernetes versions. '
                              '(DEPRECATED).')
-    parser.add_argument('-u', '--uppercase',
+    parser.add_argument('-U', '--uppercase',
                         dest='uppercase',
                         action='store_true',
                         help='For environment variable keys, uppercase and convert dashes to undescores.'
