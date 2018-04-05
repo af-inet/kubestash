@@ -169,7 +169,6 @@ def credstash_getall(args):
     secrets = credstash.getAllSecrets('',
                                       region=args.region,
                                       table=args.table,
-                                      context=args.context,
                                       **session_params)
     return secrets
 
@@ -446,15 +445,21 @@ def cmd_daemon(args):
 def main():
     args = parse_args()
 
-    # loading the config file from KUBECONFIG is broken in kubernetes-incubator/client-python
-    # for whatever reason, so you know TODO: PR for them to fix this.
-    # Loading it here will fix this issue for now.
     config_file = os.path.expanduser(os.environ.get('KUBECONFIG', '~/.kube/config'))
 
-    kubernetes.config.load_kube_config(config_file=config_file)
-
     if args.verbose:
-        print('loaded kubernetes config at: "{config_file}"'.format(config_file=config_file))
+        print('loading kubernetes config at: "{config_file}"'.format(config_file=config_file))
+
+    contexts, _ = kubernetes.config.list_kube_config_contexts()
+    context_names = [c['name'] for c in contexts]
+    if args.context and args.context not in context_names:
+        print("Kubernetes context '{context}' not found, must be one of: {context_list}"
+              .format(context=args.context,
+                      context_list=', '.join(context_names)))
+        sys.exit(1)
+
+    kubernetes.config.load_kube_config(config_file=config_file, context=args.context)
+
 
     # override the host if the user passes in a --proxy
     if args.proxy and (len(args.proxy) == 1):
