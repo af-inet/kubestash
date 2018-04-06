@@ -200,8 +200,7 @@ def generate_key(args, string):
     if args.uppercase:
         return reverse_dns_subdomain(string)
     elif args.lowercase:
-        dns_subdomain(string)
-        pass
+        return dns_subdomain(string)
     return string
 
 
@@ -470,7 +469,6 @@ def main():
         sys.exit(1)
 
     kubernetes.config.load_kube_config(config_file=config_file, context=args.context)
-
 
     # override the host if the user passes in a --proxy
     if args.proxy and (len(args.proxy) == 1):
