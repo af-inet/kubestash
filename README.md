@@ -31,7 +31,7 @@ optional arguments:
   -f, --force           replace a secret if it already exists
   -n NAMESPACE, --namespace NAMESPACE
                         kubernetes namespace
-  -u, --uppercase       For lowercase keys in credstash, convert them 
+  -U, --uppercase       For lowercase keys in credstash, convert them
                         to UPPER_CASE environment variables
   -l, --lowercase       For SECRET keys, lowercase and convert "_" to "-"
                         (DNS_SUBDOMAIN). Useful for compatibility with older

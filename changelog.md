@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 ### Added
-- `-u --uppercase` flag to convert `lower-case` keys in credstash to `LOWER_CASE` secrets
+- `-U --uppercase` flag to convert `lower-case` keys in credstash to `LOWER_CASE` secrets
 
 ## [1.0.0] - 2018-04-03
 ### Added
