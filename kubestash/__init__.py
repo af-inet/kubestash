@@ -46,6 +46,11 @@ def base_parser():
                         help='For SECRET keys, lowercase and convert "_" to "-" (DNS_SUBDOMAIN). '
                              'Useful for compatibility with older Kubernetes versions. '
                              '(DEPRECATED).')
+    parser.add_argument('-U', '--uppercase',
+                        dest='uppercase',
+                        action='store_true',
+                        help='For environment variable keys, uppercase and convert dashes to undescores.'
+                        'Useful if your keys in credstash are in lowercase')
     return parser
 
 
@@ -189,9 +194,14 @@ def dns_subdomain(string):
     return string.replace('_', '-').lower()
 
 
-def maybe_dns_subdomain(args, string):
-    """Only convert to dns_subdomain if the --lowercase flag is set. """
-    return dns_subdomain(string) if args.lowercase else string
+def generate_key(args, string):
+    """Only convert to dns_subdomain if the --lowercase flag is set. 
+       Only convert to ENV_VAR if the --uppercase flag is set."""
+    if args.uppercase:
+        return reverse_dns_subdomain(string)
+    elif args.lowercase:
+        return dns_subdomain(string)
+    return string
 
 
 def reverse_dns_subdomain(string):
@@ -216,7 +226,7 @@ def kube_init_secret(args, data):
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/V1Secret.md
     # api_version, data, kind, metadata, string_data, type
     converted_data = {
-        maybe_dns_subdomain(args, key): base64.b64encode(data[key].encode('utf-8')).decode('utf-8')
+        generate_key(args, key): base64.b64encode(data[key].encode('utf-8')).decode('utf-8')
         for key in data
     }
     metadata = kubernetes.client.V1ObjectMeta(name=args.secret)
@@ -459,7 +469,6 @@ def main():
         sys.exit(1)
 
     kubernetes.config.load_kube_config(config_file=config_file, context=args.context)
-
 
     # override the host if the user passes in a --proxy
     if args.proxy and (len(args.proxy) == 1):
