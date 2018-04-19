@@ -8,6 +8,7 @@ import os
 import kubernetes
 import credstash
 import boto3
+from collections import namedtuple
 
 
 # TODO: args.profile, args.arn
@@ -253,7 +254,7 @@ def get_kube_client():
     return kubernetes.client.CoreV1Api(api_client=api_client)
 
 
-def kube_init_secret(args, data):
+def kube_init_secret(args, name, data):
     """
     Initialize a Kubernetes secret object (only in memory).
     Data contains the secret data. Each key must consist of alphanumeric
@@ -268,33 +269,33 @@ def kube_init_secret(args, data):
         generate_key(args, key): base64.b64encode(data[key].encode('utf-8')).decode('utf-8')
         for key in data
     }
-    metadata = kubernetes.client.V1ObjectMeta(name=args.secret)
+    metadata = kubernetes.client.V1ObjectMeta(name=name)
     return kubernetes.client.V1Secret(data=converted_data, type='Opaque', metadata=metadata)
 
 
-def kube_create_secret(args, data):
+def kube_create_secret(args, namespace, secret, data):
     """ Creates a Kubernetes secret. Returns the api response from Kubernetes."""
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#create_namespaced_secret
     kube = get_kube_client()
-    body = kube_init_secret(args, data)
-    return kube.create_namespaced_secret(args.namespace, body)
+    body = kube_init_secret(args, secret, data)
+    return kube.create_namespaced_secret(namespace, body)
 
 
-def kube_replace_secret(args, data):
+def kube_replace_secret(args, namespace, secret, data):
     """ Replaces a kubernetes secret. Returns the api response from Kubernetes. """
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#replace_namespaced_secret
     kube = get_kube_client()
-    body = kube_init_secret(args, data)
-    return kube.replace_namespaced_secret(args.secret, args.namespace, body)
+    body = kube_init_secret(args, secret, data)
+    return kube.replace_namespaced_secret(secret, namespace, body)
 
 
-def kube_secret_exists(args):
+def kube_secret_exists(namespace, secret):
     """ Returns True or False if a Kubernetes secret exists or not respectively. """
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#read_namespaced_secret
     kube = get_kube_client()
     try:
         # TODO: might be better to call list_namespaced_secrets here.
-        kube.read_namespaced_secret(args.secret, args.namespace)
+        kube.read_namespaced_secret(secret, namespace)
     except kubernetes.client.rest.ApiException as e:
         if e.status == 404:
             return False  # 404 means the secret did not exist, so we can return False
@@ -424,7 +425,7 @@ def cmd_push(args):
     if args.verbose:
         print('checking that "{secret}" exists...'.format(secret=args.secret))
 
-    if kube_secret_exists(args):
+    if kube_secret_exists(args.namespace, args.secret):
         if not args.force:
             print('kubernetes Secret: "{secret}" already exists, run with -f to replace it.'.format(secret=args.secret))
             sys.exit(1)
@@ -445,7 +446,7 @@ def cmd_pushall(args):
 
     prefix = ''
 
-    if args.namespace:
+    if args.namespace != 'default':
         if not kube_namespace_exists(args):
             print('kubernetes namespace: "{namespace}" doesn\'t exist. Please create it before running kubestash'.format(namespace=args.namespace))
             sys.exit(1)
@@ -456,6 +457,34 @@ def cmd_pushall(args):
 
     secrets_list = credstash.listSecrets(region=args.region, table=args.table)
     secret_keys = [secret['name'] for secret in secrets_list if (secret['name'].startswith(prefix))]
+
+    # Map of all namespaces to secrets
+    secretMap = {}
+
+    # Go through each key and create a dict of namespace->secrets to be created
+    # if they don't exist
+    for secret_key in secret_keys:
+        ns, secret, env_key = secret_key.split('/')
+        try:
+            secretMap[ns].append(secret)
+        except Exception as e:
+            secretMap[ns] = []
+            secretMap[ns].append(secret)
+
+    for ns in secretMap:
+        # Maybe fix the method to take just string instead?
+        if not kube_namespace_exists(namedtuple('Arg', ['namespace'])(namespace=ns)):
+            print('kubernetes namespace: "{ns}" doesn\'t exist. Ignoring'.format(ns=ns))
+            continue
+        # Iterate through the secrets and make sure they exist
+        secrets = secretMap[ns]
+
+        for secret in secrets:
+            data = {}
+            if kube_secret_exists(ns, secret):
+                kube_replace_secret(args, ns, secret, data)
+            else:
+                kube_create_secret(args, ns, secret, data)
 
 
 def cmd_daemon(args):
