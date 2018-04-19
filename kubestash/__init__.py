@@ -109,6 +109,34 @@ def add_parser_push(parent):
     return parser
 
 
+def add_parser_pushall(parent):
+    """ Parses arguments for the pushall command. """
+    parser = parent.add_parser('pushall',
+                               parents=[base_parser()],
+                               help='push values from a Credstash table to a Kubernetes cluster')
+    parser.add_argument('table',
+                        action='store',
+                        type=str,
+                        help='Credstash table you want to pull values from')
+    parser.add_argument('--secret',
+                        action='store',
+                        type=str,
+                        help='Kubernetes secret you want to push values in')
+    parser.add_argument('-c', '--context',
+                        dest='context',
+                        action='store',
+                        type=str,
+                        default=None,
+                        help='kubernetes context (ignored if proxy is set)')
+    parser.add_argument('-r', '--region',
+                        dest='region',
+                        action='store',
+                        type=str,
+                        default=None,
+                        help='aws region')
+    return parser
+
+
 def add_parser_daemon(parent):
     """ Parses arguments for the daemon command. """
     parser = parent.add_parser('daemon',
@@ -157,6 +185,7 @@ def parse_args():
 
     add_parser_inject(parsers)
     add_parser_push(parsers)
+    add_parser_pushall(parsers)
     add_parser_daemon(parsers)
 
     args = parser.parse_args()
@@ -266,6 +295,21 @@ def kube_secret_exists(args):
     try:
         # TODO: might be better to call list_namespaced_secrets here.
         kube.read_namespaced_secret(args.secret, args.namespace)
+    except kubernetes.client.rest.ApiException as e:
+        if e.status == 404:
+            return False  # 404 means the secret did not exist, so we can return False
+        else:
+            raise  # don't catch errors you can't resolve.
+    return True
+
+
+def kube_namespace_exists(args):
+    """ Returns True or False if a Kubernetes namespace exists or not respectively. """
+    # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#read_namespaced_secret
+    kube = get_kube_client()
+    try:
+        # TODO: might be better to call list_namespaced_secrets here.
+        kube.read_namespace(args.namespace)
     except kubernetes.client.rest.ApiException as e:
         if e.status == 404:
             return False  # 404 means the secret did not exist, so we can return False
@@ -396,6 +440,24 @@ def cmd_push(args):
                                                                                              secret=args.secret))
 
 
+def cmd_pushall(args):
+    """Syncs a Credstash table with an entire cluster"""
+
+    prefix = ''
+
+    if args.namespace:
+        if not kube_namespace_exists(args):
+            print('kubernetes namespace: "{namespace}" doesn\'t exist. Please create it before running kubestash'.format(namespace=args.namespace))
+            sys.exit(1)
+        else:
+            prefix += args.namespace + "/"
+        if args.secret:
+            prefix += args.secret + "/"
+
+    secrets_list = credstash.listSecrets(region=args.region, table=args.table)
+    secret_keys = [secret['name'] for secret in secrets_list if (secret['name'].startswith(prefix))]
+
+
 def cmd_daemon(args):
     # https://boto3.readthedocs.io/en/latest/reference/services/dynamodb.html
     # https://boto3.readthedocs.io/en/latest/reference/services/dynamodbstreams.html
@@ -490,6 +552,8 @@ def main():
     try:
         if args.cmd == 'push':
             cmd_push(args)
+        elif args.cmd == 'pushall':
+            cmd_pushall(args)
         elif args.cmd == 'inject':
             cmd_inject(args)
         elif args.cmd == 'daemon':
