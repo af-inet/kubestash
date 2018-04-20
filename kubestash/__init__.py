@@ -1,6 +1,7 @@
 import argparse
 import base64
 import sys
+import pprint
 import time
 import urllib3
 import ssl
@@ -493,19 +494,6 @@ def cmd_push(args):
 def cmd_pushall(args):
     """Syncs a Credstash table with an entire cluster"""
 
-    prefix = ''
-
-    # This is incorrect, since it doesn't work for the `default` namespace
-    # TODO: Figure out a way!
-    if args.namespace != 'default':
-        if not kube_namespace_exists(args):
-            print('kubernetes namespace: "{namespace}" doesn\'t exist. Please create it before running kubestash'.format(namespace=args.namespace))
-            sys.exit(1)
-        else:
-            prefix += args.namespace + "/"
-        if args.secret:
-            prefix += args.secret + "/"
-
     # Map of all namespaces to secrets
     secretMap = {}
 
@@ -519,12 +507,28 @@ def cmd_pushall(args):
             args.namespace, args.secret, _secretname = args.secretname.split('/')
         else:
             secretkey = args.namespace + "/" + args.secret + "/" + args.secretname
+
+        if args.verbose:
+            print("Syncing a single secret key: key={key}, ns={namespace}, secret={secret}".format(key=secretkey, namespace=args.namespace, secret=args.secret))
+
         secrets = {args.secretname: credstash_getone(secretkey, args)}
 
         secretMap = {
             args.namespace: set([args.secret])
         }
     else:
+        prefix = ''
+
+        # This is incorrect, since it doesn't work for the `default` namespace
+        # TODO: Figure out a way!
+        if args.namespace != 'default':
+            if not kube_namespace_exists(args):
+                print('kubernetes namespace: "{namespace}" doesn\'t exist. Please create it before running kubestash'.format(namespace=args.namespace))
+                sys.exit(1)
+            else:
+                prefix += args.namespace + "/"
+            if args.secret:
+                prefix += args.secret + "/"
         secrets = credstash_getall(args)
         secrets = {k: secrets[k] for k in secrets if k.startswith(prefix)}
 
@@ -549,9 +553,15 @@ def cmd_pushall(args):
             prefix = ns + "/" + secret + "/"
             data = filter_secrets(secrets, ns, secret)
             if kube_secret_exists(ns, secret):
+                if args.verbose:
+                    print("Force pushing secret to kubernetes: ns={ns}, secret={secret}".format(ns=ns, secret=secret))
                 kube_replace_secret(args, ns, secret, data)
             else:
+                if args.verbose:
+                    print("Creating and pushing secret to kubernetes: ns={ns}, secret={secret}".format(ns=ns, secret=secret))
                 kube_create_secret(args, ns, secret, data)
+    if args.verbose:
+        print("All secrets synced")
 
 
 def filter_secrets(secrets, ns, secret):
@@ -633,7 +643,7 @@ def cmd_daemon(args):
         time.sleep(args.interval)
 
 
-def daemon_all(args):
+def cmd_daemonall(args):
     args.force = True
 
     client, shard_iterator = get_stream_client(args)
@@ -641,7 +651,7 @@ def daemon_all(args):
     if args.verbose:
         print("checking DynamoDB Stream for changes...")
 
-    response = client.get_records(ShardIterator=shard_iterator, Limit=100)
+    response = client.get_records(ShardIterator=shard_iterator, Limit=1)
 
     while True:
         shard_iterator = response['NextShardIterator']
@@ -649,11 +659,15 @@ def daemon_all(args):
         if args.verbose:
             print("checking DynamoDB Stream for changes...")
 
-        response = client.get_records(ShardIterator=shard_iterator, Limit=100)
+        response = client.get_records(ShardIterator=shard_iterator, Limit=1)
+
         if len(response['Records']) > 0:
+            key = response['Records'][0]['dynamodb']['Keys']['name']['S']
             if args.verbose:
                 print("detected DynamoDB changes, running push command...")
-            cmd_push(args)
+            argscopy = copy.copy(args)
+            argscopy.secretkeyname = key
+            cmd_pushall(argscopy)
         time.sleep(args.interval)
 
 
@@ -691,6 +705,8 @@ def main():
             cmd_inject(args)
         elif args.cmd == 'daemon':
             cmd_daemon(args)
+        elif args.cmd == 'daemonall':
+            cmd_daemonall(args)
         else:
             pass
     except urllib3.exceptions.MaxRetryError as e:
