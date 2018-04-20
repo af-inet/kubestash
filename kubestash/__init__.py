@@ -1,7 +1,6 @@
 import argparse
 import base64
 import sys
-import pprint
 import time
 import urllib3
 import ssl
@@ -9,6 +8,7 @@ import os
 import kubernetes
 import credstash
 import boto3
+import copy
 from collections import namedtuple
 
 
@@ -651,7 +651,7 @@ def cmd_daemonall(args):
     if args.verbose:
         print("checking DynamoDB Stream for changes...")
 
-    response = client.get_records(ShardIterator=shard_iterator, Limit=1)
+    response = client.get_records(ShardIterator=shard_iterator, Limit=10)
 
     while True:
         shard_iterator = response['NextShardIterator']
@@ -659,14 +659,14 @@ def cmd_daemonall(args):
         if args.verbose:
             print("checking DynamoDB Stream for changes...")
 
-        response = client.get_records(ShardIterator=shard_iterator, Limit=1)
+        response = client.get_records(ShardIterator=shard_iterator, Limit=10)
 
         if len(response['Records']) > 0:
             key = response['Records'][0]['dynamodb']['Keys']['name']['S']
             if args.verbose:
                 print("detected DynamoDB changes, running push command...")
             argscopy = copy.copy(args)
-            argscopy.secretkeyname = key
+            argscopy.secretname = key
             cmd_pushall(argscopy)
         time.sleep(args.interval)
 
