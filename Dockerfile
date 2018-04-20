@@ -12,3 +12,5 @@ COPY . /app
 WORKDIR /app
 # force dateutil otherwise installation fails
 RUN pip install requests python-dateutil==2.6.1 && python setup.py develop
+
+ENTRYPOINT /usr/local/bin/kubestash
