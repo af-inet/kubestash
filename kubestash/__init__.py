@@ -119,6 +119,12 @@ def add_parser_pushall(parent):
                         action='store',
                         type=str,
                         help='Credstash table you want to pull values from')
+
+    parser.add_argument('--secretname',
+                        action='store',
+                        type=str,
+                        help='ENV_NAME you want to sync (requires --secret and --namespace)')
+
     parser.add_argument('--secret',
                         action='store',
                         type=str,
@@ -174,6 +180,37 @@ def add_parser_daemon(parent):
     return parser
 
 
+def add_parser_daemonall(parent):
+    """ Parses arguments for the daemon command. """
+    parser = parent.add_parser('daemonall',
+                               parents=[base_parser()],
+                               help='daemon mode; automatically syncs your credstash table with your entire cluster. Requires DynamoDB Streams to be enabled for your table. '
+                                    'Implies -f --force.')
+    parser.add_argument('table',
+                        action='store',
+                        type=str,
+                        help='Credstash table you want to pull values from')
+    parser.add_argument('-c', '--context',
+                        dest='context',
+                        action='store',
+                        type=str,
+                        default=None,
+                        help='kubernetes context (ignored if proxy is set)')
+    parser.add_argument('-r', '--region',
+                        dest='region',
+                        action='store',
+                        type=str,
+                        default=None,
+                        help='aws region')
+    parser.add_argument('-i', '--interval',
+                        dest='interval',
+                        action='store',
+                        type=int,
+                        default=10,
+                        help='how long to sleep between shard iterations (seconds)')
+    return parser
+
+
 def parse_args():
     """ Parses command line arguments. """
     # https://docs.python.org/3/library/argparse.html
@@ -188,6 +225,7 @@ def parse_args():
     add_parser_push(parsers)
     add_parser_pushall(parsers)
     add_parser_daemon(parsers)
+    add_parser_daemonall(parsers)
 
     args = parser.parse_args()
 
@@ -206,6 +244,17 @@ def credstash_getall(args):
                                       table=args.table,
                                       **session_params)
     return secrets
+
+
+def credstash_getone(name, args):
+    """ Returns one single secret from from credstash table `args.table`. """
+    if args.verbose:
+        print('fetching your secret from "{table}" '.format(table=args.table))
+    session_params = credstash.get_session_params(None, None)
+    return credstash.getSecret(name,
+                               region=args.region,
+                               table=args.table,
+                               **session_params)
 
 
 def dns_subdomain(string):
@@ -457,22 +506,37 @@ def cmd_pushall(args):
         if args.secret:
             prefix += args.secret + "/"
 
-    secrets = credstash_getall(args)
-
-    secrets = {k: secrets[k] for k in secrets if k.startswith(prefix)}
-
     # Map of all namespaces to secrets
     secretMap = {}
 
-    # Go through each key and create a dict of namespace->secrets to be created
-    # if they don't exist
-    for secret_key in secrets:
-        ns, secret, env_key = secret_key.split('/')
-        try:
-            secretMap[ns].add(secret)
-        except Exception as e:
-            secretMap[ns] = set()
-            secretMap[ns].add(secret)
+    # Depending on whether or not we need to
+    if args.secretname:
+        # If the string contains slashes
+        # we can infer the namespace and secretname
+        _secretname = args.secretname
+        secretkey = args.secretname
+        if "/" in args.secretname:
+            args.namespace, args.secret, _secretname = args.secretname.split('/')
+        else:
+            secretkey = args.namespace + "/" + args.secret + "/" + args.secretname
+        secrets = {args.secretname: credstash_getone(secretkey, args)}
+
+        secretMap = {
+            args.namespace: set([args.secret])
+        }
+    else:
+        secrets = credstash_getall(args)
+        secrets = {k: secrets[k] for k in secrets if k.startswith(prefix)}
+
+        # Go through each key and create a dict of namespace->secrets to be created
+        # if they don't exist
+        for secret_key in secrets:
+            ns, secret, env_key = secret_key.split('/')
+            try:
+                secretMap[ns].add(secret)
+            except Exception as e:
+                secretMap[ns] = set()
+                secretMap[ns].add(secret)
 
     for ns in secretMap:
         # Maybe fix the method to take just string instead?
@@ -497,14 +561,7 @@ def filter_secrets(secrets, ns, secret):
     return {k.split('/')[2]: secrets[k] for k in secrets if k.startswith(prefix)}
 
 
-def cmd_daemon(args):
-    # https://boto3.readthedocs.io/en/latest/reference/services/dynamodb.html
-    # https://boto3.readthedocs.io/en/latest/reference/services/dynamodbstreams.html
-    # TODO: what if there are more than 100 streams?
-
-    # -f --force is implied by daemon
-    args.force = True
-
+def get_stream_client(args):
     client = boto3.client('dynamodbstreams')
 
     response = client.list_streams(TableName=args.table, Limit=100)
@@ -537,6 +594,19 @@ def cmd_daemon(args):
 
     shard_iterator = response['ShardIterator']
 
+    return (client, shard_iterator)
+
+
+def cmd_daemon(args):
+    # https://boto3.readthedocs.io/en/latest/reference/services/dynamodb.html
+    # https://boto3.readthedocs.io/en/latest/reference/services/dynamodbstreams.html
+    # TODO: what if there are more than 100 streams?
+
+    # -f --force is implied by daemon
+    args.force = True
+
+    client, shard_iterator = get_stream_client(args)
+
     cmd_push(args)
 
     if args.verbose:
@@ -555,6 +625,30 @@ def cmd_daemon(args):
         shard_iterator = response['NextShardIterator']
         if args.verbose:
             print("checking DynamoDB Stream for changes...")
+        response = client.get_records(ShardIterator=shard_iterator, Limit=100)
+        if len(response['Records']) > 0:
+            if args.verbose:
+                print("detected DynamoDB changes, running push command...")
+            cmd_push(args)
+        time.sleep(args.interval)
+
+
+def daemon_all(args):
+    args.force = True
+
+    client, shard_iterator = get_stream_client(args)
+
+    if args.verbose:
+        print("checking DynamoDB Stream for changes...")
+
+    response = client.get_records(ShardIterator=shard_iterator, Limit=100)
+
+    while True:
+        shard_iterator = response['NextShardIterator']
+
+        if args.verbose:
+            print("checking DynamoDB Stream for changes...")
+
         response = client.get_records(ShardIterator=shard_iterator, Limit=100)
         if len(response['Records']) > 0:
             if args.verbose:
