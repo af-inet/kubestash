@@ -225,7 +225,7 @@ def dns_subdomain(string):
 
 
 def generate_key(args, string):
-    """Only convert to dns_subdomain if the --lowercase flag is set. 
+    """Only convert to dns_subdomain if the --lowercase flag is set.
        Only convert to ENV_VAR if the --uppercase flag is set."""
     if args.uppercase:
         return reverse_dns_subdomain(string)
@@ -446,6 +446,8 @@ def cmd_pushall(args):
 
     prefix = ''
 
+    # This is incorrect, since it doesn't work for the `default` namespace
+    # TODO: Figure out a way!
     if args.namespace != 'default':
         if not kube_namespace_exists(args):
             print('kubernetes namespace: "{namespace}" doesn\'t exist. Please create it before running kubestash'.format(namespace=args.namespace))
@@ -455,36 +457,44 @@ def cmd_pushall(args):
         if args.secret:
             prefix += args.secret + "/"
 
-    secrets_list = credstash.listSecrets(region=args.region, table=args.table)
-    secret_keys = [secret['name'] for secret in secrets_list if (secret['name'].startswith(prefix))]
+    secrets = credstash_getall(args)
+
+    secrets = {k: secrets[k] for k in secrets if k.startswith(prefix)}
 
     # Map of all namespaces to secrets
     secretMap = {}
 
     # Go through each key and create a dict of namespace->secrets to be created
     # if they don't exist
-    for secret_key in secret_keys:
+    for secret_key in secrets:
         ns, secret, env_key = secret_key.split('/')
         try:
-            secretMap[ns].append(secret)
+            secretMap[ns].add(secret)
         except Exception as e:
-            secretMap[ns] = []
-            secretMap[ns].append(secret)
+            secretMap[ns] = set()
+            secretMap[ns].add(secret)
 
     for ns in secretMap:
         # Maybe fix the method to take just string instead?
         if not kube_namespace_exists(namedtuple('Arg', ['namespace'])(namespace=ns)):
             print('kubernetes namespace: "{ns}" doesn\'t exist. Ignoring'.format(ns=ns))
             continue
-        # Iterate through the secrets and make sure they exist
-        secrets = secretMap[ns]
 
-        for secret in secrets:
-            data = {}
+        # Iterate through the secrets and make sure they exist
+        for secret in secretMap[ns]:
+            prefix = ns + "/" + secret + "/"
+            data = filter_secrets(secrets, ns, secret)
             if kube_secret_exists(ns, secret):
                 kube_replace_secret(args, ns, secret, data)
             else:
                 kube_create_secret(args, ns, secret, data)
+
+
+def filter_secrets(secrets, ns, secret):
+    """ Filters the secrets passed and strips away the prefix"""
+    prefix = ns + "/" + secret
+
+    return {k.split('/')[2]: secrets[k] for k in secrets if k.startswith(prefix)}
 
 
 def cmd_daemon(args):
