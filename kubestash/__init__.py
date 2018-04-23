@@ -662,12 +662,15 @@ def cmd_daemonall(args):
         response = client.get_records(ShardIterator=shard_iterator, Limit=10)
 
         if len(response['Records']) > 0:
-            key = response['Records'][0]['dynamodb']['Keys']['name']['S']
-            if args.verbose:
-                print("detected DynamoDB changes, running push command...")
-            argscopy = copy.copy(args)
-            argscopy.secretname = key
-            cmd_pushall(argscopy)
+            for record in:
+                response['Records']
+                key = record['dynamodb']['Keys']['name']['S']
+                if args.verbose:
+                    print("detected DynamoDB changes, running push command...")
+                argscopy = copy.copy(args)
+                argscopy.secretname = key
+                cmd_pushall(argscopy)
+
         time.sleep(args.interval)
 
 
