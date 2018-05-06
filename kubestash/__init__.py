@@ -294,16 +294,6 @@ def maybe_reverse_dns_subdomain(args, string):
     return reverse_dns_subdomain(string) if args.lowercase else string
 
 
-def get_kube_client():
-    """
-    Return a kubernetes.client.CoreV1Api object
-    with the default configuration set correctly
-    by considering the proxy and the context variables
-    """
-    api_client = kubernetes.client.ApiClient(configuration=kubernetes.client.configuration)
-    return kubernetes.client.CoreV1Api(api_client=api_client)
-
-
 def kube_init_secret(args, name, data):
     """
     Initialize a Kubernetes secret object (only in memory).
@@ -326,7 +316,7 @@ def kube_init_secret(args, name, data):
 def kube_create_secret(args, namespace, secret, data):
     """ Creates a Kubernetes secret. Returns the api response from Kubernetes."""
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#create_namespaced_secret
-    kube = get_kube_client()
+    kube = kubernetes.client.CoreV1Api()
     body = kube_init_secret(args, secret, data)
     return kube.create_namespaced_secret(namespace, body)
 
@@ -334,7 +324,7 @@ def kube_create_secret(args, namespace, secret, data):
 def kube_replace_secret(args, namespace, secret, data):
     """ Replaces a kubernetes secret. Returns the api response from Kubernetes. """
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#replace_namespaced_secret
-    kube = get_kube_client()
+    kube = kubernetes.client.CoreV1Api()
     body = kube_init_secret(args, secret, data)
     return kube.replace_namespaced_secret(secret, namespace, body)
 
@@ -342,7 +332,7 @@ def kube_replace_secret(args, namespace, secret, data):
 def kube_secret_exists(namespace, secret):
     """ Returns True or False if a Kubernetes secret exists or not respectively. """
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#read_namespaced_secret
-    kube = get_kube_client()
+    kube = kubernetes.client.CoreV1Api()
     try:
         # TODO: might be better to call list_namespaced_secrets here.
         kube.read_namespaced_secret(secret, namespace)
@@ -357,7 +347,7 @@ def kube_secret_exists(namespace, secret):
 def kube_namespace_exists(args):
     """ Returns True or False if a Kubernetes namespace exists or not respectively. """
     # https://github.com/kubernetes-incubator/client-python/blob/master/kubernetes/docs/CoreV1Api.md#read_namespaced_secret
-    kube = get_kube_client()
+    kube = kubernetes.client.CoreV1Api()
     try:
         # TODO: might be better to call list_namespaced_secrets here.
         kube.read_namespace(args.namespace)
@@ -371,20 +361,20 @@ def kube_namespace_exists(args):
 
 def kube_read_secret(args):
     """ Returns the full contents of a Kubernetes secret. """
-    kube = get_kube_client()
+    kube =  kubernetes.client.CoreV1Api()
     return kube.read_namespaced_secret(args.secret, args.namespace)
 
 
 def kube_read_deployment(args):
     """ Returns the full contents of Kubernetes deployment. """
-    kube = get_kube_client()
+    kube =  kubernetes.client.CoreV1Api()
     response = kube.read_namespaced_deployment(args.deployment, args.namespace)
     return response
 
 
 def kube_patch_deployment(args, deployment):
     """ Patches a Kubernetes deployment with data `deployment`. Returns the full contents of the patched deployment. """
-    kube = get_kube_client()
+    kube =  kubernetes.client.CoreV1Api()
     return kube.patch_namespaced_deployment(args.deployment, args.namespace, deployment)
 
 
@@ -481,7 +471,7 @@ def cmd_push(args):
             sys.exit(1)
         else:
             data = credstash_getall(args)
-            kube_replace_secret(args, data)
+            kube_replace_secret(args, args.namespace, args.secret, data)
             print('replaced Kubernetes Secret: "{secret}" with Credstash table: "{table}"'.format(secret=args.secret,
                                                                                                   table=args.table))
     else:
@@ -651,7 +641,7 @@ def cmd_daemonall(args):
     if args.verbose:
         print("checking DynamoDB Stream for changes...")
 
-    response = client.get_records(ShardIterator=shard_iterator, Limit=10)
+    response = client.get_records(ShardIterator=shard_iterator, Limit=100)
 
     while True:
         shard_iterator = response['NextShardIterator']
@@ -659,11 +649,10 @@ def cmd_daemonall(args):
         if args.verbose:
             print("checking DynamoDB Stream for changes...")
 
-        response = client.get_records(ShardIterator=shard_iterator, Limit=10)
+        response = client.get_records(ShardIterator=shard_iterator, Limit=100)
 
         if len(response['Records']) > 0:
-            for record in:
-                response['Records']
+            for record in response['Records']:
                 key = record['dynamodb']['Keys']['name']['S']
                 if args.verbose:
                     print("detected DynamoDB changes, running push command...")
@@ -677,27 +666,21 @@ def cmd_daemonall(args):
 def main():
     args = parse_args()
 
-    config_file = os.path.expanduser(os.environ.get('KUBECONFIG', '~/.kube/config'))
+    # print a useful error message if the user supplies an invalid context
+    contexts, _ = kubernetes.config.list_kube_config_contexts()
+    context_names = [c['name'] for c in contexts]
+    if args.context and args.context not in context_names:
+        print("Kubernetes context '{context}' not found, must be one of: {context_list}"
+              .format(context=args.context,
+                      context_list=', '.join(context_names)))
+        sys.exit(1)
 
-    if args.verbose:
-        print('loading kubernetes config at: "{config_file}"'.format(config_file=config_file))
+    kubernetes.config.load_kube_config(context=args.context)
 
-    # override the host if the user passes in a --proxy
+    # if we're in proxy mode, disable ssl verification
     if args.proxy and (len(args.proxy) == 1):
-        config = kubernetes.client.Configuration()
-        config.host = args.proxy[0]
-        kubernetes.client.configuration = config
+        kubernetes.client.configuration.host = args.proxy[0]
         kubernetes.client.configuration.verify_ssl = False
-
-    else:
-        contexts, _ = kubernetes.config.list_kube_config_contexts()
-        context_names = [c['name'] for c in contexts]
-        if args.context and args.context not in context_names:
-            print("Kubernetes context '{context}' not found, must be one of: {context_list}"
-                  .format(context=args.context,
-                          context_list=', '.join(context_names)))
-            sys.exit(1)
-        kubernetes.config.load_kube_config(config_file=config_file, context=args.context)
 
     try:
         if args.cmd == 'push':
@@ -743,7 +726,7 @@ def main():
                    '- is your apiserver reachable ?\n\n'
                    'use --proxy HOST to override the host if neccesary\n'
                    ).format(host=kubernetes.client.configuration.host,
-                            config_file=config_file))
+                            config_file=os.path.expanduser(os.environ.get('KUBECONFIG', '~/.kube/config'))))
             sys.exit(1)
         else:
             raise
