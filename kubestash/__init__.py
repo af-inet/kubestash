@@ -476,7 +476,7 @@ def cmd_push(args):
                                                                                                   table=args.table))
     else:
         data = credstash_getall(args)
-        kube_create_secret(args, data)
+        kube_create_secret(args,args.namespace, args.secret, data)
         print('created Kubernetes Secret: "{secret}" with Credstash table: "{table}"'.format(table=args.table,
                                                                                              secret=args.secret))
 
