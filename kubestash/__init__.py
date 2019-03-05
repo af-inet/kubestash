@@ -562,7 +562,7 @@ def filter_secrets(secrets, ns, secret):
 
 
 def get_stream_client(args):
-    client = boto3.client('dynamodbstreams')
+    client = boto3.client('dynamodbstreams', region_name=args.region)
 
     response = client.list_streams(TableName=args.table, Limit=100)
 
