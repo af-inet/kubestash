@@ -56,33 +56,6 @@ def base_parser():
     return parser
 
 
-def add_parser_inject(parent):
-    """ Parses arguments for the inject command. """
-    parser = parent.add_parser('inject',
-                               parents=[base_parser()],
-                               help='inject env variables into a Kubernetes deployment manifest, '
-                                    'taken from a Kubernetes secret (DEPRECATED; see README.md, use envFrom instead)')
-    parser.add_argument('secret',
-                        action='store',
-                        type=str,
-                        help='Kubernetes secret you want to take values from')
-    parser.add_argument('deployment',
-                        action='store',
-                        type=str,
-                        help='Kubernetes deployment to inject env values into')
-    parser.add_argument('-c', '--container',
-                        action='append',
-                        default=[],
-                        type=str,
-                        help='specify one or more containers to insert env values into (default is all containers)')
-    parser.add_argument('-u', '--update-only',
-                        dest='update_only',
-                        action='store_true',
-                        help='only update envs that are already present (do not append), useful for updating envs to '
-                             'point to a different secret')
-    return parser
-
-
 def add_parser_push(parent):
     """ Parses arguments for the push command. """
     parser = parent.add_parser('push',
@@ -222,7 +195,6 @@ def parse_args():
     parsers = parser.add_subparsers(dest='cmd')
     parsers.required = True
 
-    add_parser_inject(parsers)
     add_parser_push(parsers)
     add_parser_pushall(parsers)
     add_parser_daemon(parsers)
@@ -423,40 +395,6 @@ def init_envs_for_container(args, secrets, container):
             if env['name'] in container_env_names
         ]
     return envs
-
-
-def cmd_inject(args):
-    """
-    Pulls values from a Kubernetes secret and injects them into a deployment as environment variables.
-    There may be multiple containers in a single deployment, so we inject into all of them.
-    """
-    # read the original deployment file
-    deployment = kube_read_deployment(args)
-    # read the secrets
-    secrets = kube_read_secret(args).data
-    # TODO: implement a diff here so we can inform the use if they actually changed anything.
-    # TODO: this is a bit too complex, find a way to simplify
-    data = {
-        'spec': {
-            'template': {
-                'spec': {
-                    'containers': [
-                        {
-                            'name': container.name,
-                            'env': init_envs_for_container(args, secrets, container)
-                        }
-                        for container in deployment.spec.template.spec.containers
-                        # if no --container is passed in, we inject in every container
-                        if (container.name in args.container) or (len(args.container) == 0)
-                    ]
-                }
-            }
-        }
-    }
-    kube_patch_deployment(args, data)
-    print('inject is DEPRECATED; see README.md, use envFrom instead)\n\n'
-          'Injected environment variables into deployment: "{deployment}" '
-          'from secret: "{secret}"'.format(deployment=args.deployment, secret=args.secret))
 
 
 def cmd_push(args):
@@ -687,8 +625,6 @@ def main():
             cmd_push(args)
         elif args.cmd == 'pushall':
             cmd_pushall(args)
-        elif args.cmd == 'inject':
-            cmd_inject(args)
         elif args.cmd == 'daemon':
             cmd_daemon(args)
         elif args.cmd == 'daemonall':
