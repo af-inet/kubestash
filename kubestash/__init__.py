@@ -79,7 +79,7 @@ def add_parser_push(parent):
                         dest='region',
                         action='store',
                         type=str,
-                        default=None,
+                        default='us-east-1',
                         help='aws region')
     return parser
 

@@ -8,9 +8,11 @@ RUN apk add --no-cache \
     python3-dev \
     yaml-dev \
     && mkdir /app
-COPY . /app
+
 WORKDIR /app
 # force dateutil otherwise installation fails
-RUN pip install requests python-dateutil==2.6.1 && python setup.py develop
-
-ENTRYPOINT /usr/local/bin/kubestash
+RUN pip install requests python-dateutil==2.6.1
+COPY ./requirements.txt ./requirements.txt
+RUN pip install -r requirements.txt
+COPY . /app
+RUN python setup.py install
