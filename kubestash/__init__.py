@@ -361,20 +361,20 @@ def kube_namespace_exists(args):
 
 def kube_read_secret(args):
     """ Returns the full contents of a Kubernetes secret. """
-    kube =  kubernetes.client.CoreV1Api()
+    kube = kubernetes.client.CoreV1Api()
     return kube.read_namespaced_secret(args.secret, args.namespace)
 
 
 def kube_read_deployment(args):
     """ Returns the full contents of Kubernetes deployment. """
-    kube =  kubernetes.client.CoreV1Api()
+    kube = kubernetes.client.CoreV1Api()
     response = kube.read_namespaced_deployment(args.deployment, args.namespace)
     return response
 
 
 def kube_patch_deployment(args, deployment):
     """ Patches a Kubernetes deployment with data `deployment`. Returns the full contents of the patched deployment. """
-    kube =  kubernetes.client.CoreV1Api()
+    kube = kubernetes.client.CoreV1Api()
     return kube.patch_namespaced_deployment(args.deployment, args.namespace, deployment)
 
 
@@ -476,7 +476,7 @@ def cmd_push(args):
                                                                                                   table=args.table))
     else:
         data = credstash_getall(args)
-        kube_create_secret(args,args.namespace, args.secret, data)
+        kube_create_secret(args, args.namespace, args.secret, data)
         print('created Kubernetes Secret: "{secret}" with Credstash table: "{table}"'.format(table=args.table,
                                                                                              secret=args.secret))
 
