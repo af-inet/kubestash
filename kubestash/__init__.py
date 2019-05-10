@@ -9,6 +9,7 @@ import kubernetes
 import credstash
 import boto3
 import copy
+import traceback
 from collections import namedtuple
 
 
@@ -478,16 +479,22 @@ def cmd_pushall(args):
 
         # Iterate through the secrets and make sure they exist
         for secret in secretMap[ns]:
-            prefix = ns + "/" + secret + "/"
-            data = filter_secrets(secrets, ns, secret)
-            if kube_secret_exists(ns, secret):
+            try:
+                prefix = ns + "/" + secret + "/"
+                data = filter_secrets(secrets, ns, secret)
+                if kube_secret_exists(ns, secret):
+                    if args.verbose:
+                        print("Force pushing secret to kubernetes: ns={ns}, secret={secret}".format(ns=ns, secret=secret))
+                    kube_replace_secret(args, ns, secret, data)
+                else:
+                    if args.verbose:
+                        print("Creating and pushing secret to kubernetes: ns={ns}, secret={secret}".format(ns=ns, secret=secret))
+                    kube_create_secret(args, ns, secret, data)
+            except:
                 if args.verbose:
-                    print("Force pushing secret to kubernetes: ns={ns}, secret={secret}".format(ns=ns, secret=secret))
-                kube_replace_secret(args, ns, secret, data)
-            else:
-                if args.verbose:
-                    print("Creating and pushing secret to kubernetes: ns={ns}, secret={secret}".format(ns=ns, secret=secret))
-                kube_create_secret(args, ns, secret, data)
+                    traceback.print_exc()
+                else:
+                    pass
     if args.verbose:
         print("All secrets synced")
 
