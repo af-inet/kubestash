@@ -9,6 +9,7 @@ import kubernetes
 import credstash
 import boto3
 import copy
+import traceback
 from collections import namedtuple
 
 
@@ -478,16 +479,22 @@ def cmd_pushall(args):
 
         # Iterate through the secrets and make sure they exist
         for secret in secretMap[ns]:
-            prefix = ns + "/" + secret + "/"
-            data = filter_secrets(secrets, ns, secret)
-            if kube_secret_exists(ns, secret):
+            try:
+                prefix = ns + "/" + secret + "/"
+                data = filter_secrets(secrets, ns, secret)
+                if kube_secret_exists(ns, secret):
+                    if args.verbose:
+                        print("Force pushing secret to kubernetes: ns={ns}, secret={secret}".format(ns=ns, secret=secret))
+                    kube_replace_secret(args, ns, secret, data)
+                else:
+                    if args.verbose:
+                        print("Creating and pushing secret to kubernetes: ns={ns}, secret={secret}".format(ns=ns, secret=secret))
+                    kube_create_secret(args, ns, secret, data)
+            except:
                 if args.verbose:
-                    print("Force pushing secret to kubernetes: ns={ns}, secret={secret}".format(ns=ns, secret=secret))
-                kube_replace_secret(args, ns, secret, data)
-            else:
-                if args.verbose:
-                    print("Creating and pushing secret to kubernetes: ns={ns}, secret={secret}".format(ns=ns, secret=secret))
-                kube_create_secret(args, ns, secret, data)
+                    traceback.print_exc()
+                else:
+                    pass
     if args.verbose:
         print("All secrets synced")
 
@@ -604,16 +611,21 @@ def cmd_daemonall(args):
 def main():
     args = parse_args()
 
-    # print a useful error message if the user supplies an invalid context
-    contexts, _ = kubernetes.config.list_kube_config_contexts()
-    context_names = [c['name'] for c in contexts]
-    if args.context and args.context not in context_names:
-        print("Kubernetes context '{context}' not found, must be one of: {context_list}"
-              .format(context=args.context,
-                      context_list=', '.join(context_names)))
-        sys.exit(1)
+    # authenticate to api server when run as a pod
+    if os.getenv('KUBERNETES_SERVICE_HOST'):
+        kubernetes.config.load_incluster_config()
+    # authenticate to api server with .kube/config file, use context.
+    else:
+        # print a useful error message if the user supplies an invalid context
+        contexts, _ = kubernetes.config.list_kube_config_contexts()
+        context_names = [c['name'] for c in contexts]
+        if args.context and args.context not in context_names:
+            print("Kubernetes context '{context}' not found, must be one of: {context_list}"
+                  .format(context=args.context,
+                          context_list=', '.join(context_names)))
+            sys.exit(1)
 
-    kubernetes.config.load_kube_config(context=args.context)
+        kubernetes.config.load_kube_config(context=args.context)
 
     # if we're in proxy mode, disable ssl verification
     if args.proxy and (len(args.proxy) == 1):
