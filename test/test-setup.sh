@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # this is my local testing script, probably won't work for everyone
 #
-set -e
-set -x
+set -ex
 
 # (setup): make sure we're running this script from the root of the git directory
 cd "$(git rev-parse --show-toplevel)"
@@ -34,12 +33,9 @@ minikube status || minikube start
 # (sanity check): make sure kubectl is working
 kubectl get pods
 
-# (test): create a secret with kubestash
-python -m kubestash push -f kubestash kubestash
-if [ "$(kubectl get secret kubestash -o=jsonpath='{.data.TEST}' | base64 -D)" != "TEST" ]; then
-    echo "looks like kubestash isn't working, exiting..."
-    exit 1
-fi
-# TODO: add tests for other commands
+# make sure the docker context isn't set
+unset DOCKER_HOST
+unset DOCKER_API_VERSION
+unset DOCKER_TLS_VERIFY
+unset DOCKER_CERT_PATH
 
-echo "Success."
