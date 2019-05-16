@@ -611,21 +611,19 @@ def cmd_daemonall(args):
 def main():
     args = parse_args()
 
-    # authenticate to api server when run as a pod
-    if os.getenv('KUBERNETES_SERVICE_HOST'):
-        kubernetes.config.load_incluster_config()
-    # authenticate to api server with .kube/config file, use context.
-    else:
-        # print a useful error message if the user supplies an invalid context
+    try:
+        kubernetes.config.load_kube_config(context=args.context)
         contexts, _ = kubernetes.config.list_kube_config_contexts()
         context_names = [c['name'] for c in contexts]
+        # print a useful error message if the user supplies an invalid context
         if args.context and args.context not in context_names:
             print("Kubernetes context '{context}' not found, must be one of: {context_list}"
                   .format(context=args.context,
                           context_list=', '.join(context_names)))
             sys.exit(1)
-
-        kubernetes.config.load_kube_config(context=args.context)
+    except (ValueError, IOError):
+        # if the KUBECONFIG is missing or invalid, fall back to incluster config
+        kubernetes.config.load_incluster_config()
 
     # if we're in proxy mode, disable ssl verification
     if args.proxy and (len(args.proxy) == 1):
