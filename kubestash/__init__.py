@@ -43,6 +43,12 @@ def base_parser():
                         type=str,
                         default='default',
                         help='kubernetes namespace')
+    parser.add_argument('-N', '--protected-namespaces',
+                        dest='deny_ns',
+                        action='store',
+                        type=str,
+                        default='kube-system',
+                        help='comma separated list of protected namespaces, kubestash shall fail to update secrets inside these namespaces')
     parser.add_argument('-l', '--lowercase',
                         dest='lowercase',
                         action='store_true',
@@ -404,6 +410,11 @@ def cmd_push(args):
     if args.verbose:
         print('checking that "{secret}" exists...'.format(secret=args.secret))
 
+    if args.namespace.lower() in args.deny_ns.lower().split(','):
+        if args.verbose:
+            print('namespace "{ns}" is a protected namespace, can\'t update secrets in there.'.format(ns=args.namespace.lower()))
+        sys.exit(1)
+
     if kube_secret_exists(args.namespace, args.secret):
         if not args.force:
             print('kubernetes Secret: "{secret}" already exists, run with -f to replace it.'.format(secret=args.secret))
@@ -475,6 +486,11 @@ def cmd_pushall(args):
         # Maybe fix the method to take just string instead?
         if not kube_namespace_exists(namedtuple('Arg', ['namespace'])(namespace=ns)):
             print('kubernetes namespace: "{ns}" doesn\'t exist. Ignoring'.format(ns=ns))
+            continue
+        # Deny updates to protected namespaces args.deny_ns
+        if ns.lower() in args.deny_ns.lower().split(','):
+            if args.verbose:
+                print('namespace "{ns}" is a protected namespace, can\'t update secrets in there.'.format(ns=ns.lower()))
             continue
 
         # Iterate through the secrets and make sure they exist
