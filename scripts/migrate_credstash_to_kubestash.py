@@ -34,6 +34,13 @@ def parse_args():
                         required=True,
                         help='Credstash table you want to populate')
 
+    parser.add_argument('-k', '--key',
+                        dest='kms_key_alias',
+                        action='store',
+                        type=str,
+                        default='credstash',
+                        help='KMS key alias used to populate secrets to target table')
+
     parser.add_argument('-a', '--application',
                         dest='app',
                         action='store',
@@ -105,9 +112,9 @@ def credstash_push(args, key, value, ver=0):
         print('Pushing secret {secret} to "{table}"'.format(secret=key, table=args.tar_table))
     session_params = credstash.get_session_params(None, None)
     if ver == 0:
-        pushed_secret = credstash.putSecret(key, value, region=args.region, table=args.tar_table, **session_params)
+        pushed_secret = credstash.putSecret(key, value, region=args.region, table=args.tar_table, kms_key=args.kms_key_alias, **session_params)
     else:
-        pushed_secret = credstash.putSecret(key, value, version=ver, region=args.region, table=args.tar_table, **session_params)
+        pushed_secret = credstash.putSecret(key, value, version=ver, region=args.region, table=args.tar_table, kms_key=args.kms_key_alias, **session_params)
     return pushed_secret
 
 
@@ -125,8 +132,9 @@ def main():
     args = parse_args()
     is_valid_dns_1123(args)
     kubestash_secrets = gen_kubestash_secrets(args)
+    args.kms_key_alias = 'alias/' + args.kms_key_alias
     if args.dryrun:
-        print(' Source table: {srct}\n Target table: {tart}\n Namespace: {ns}\n Application name: {app}\n'.format(srct=args.src_table, tart=args.tar_table, ns=args.namespace, app=args.app))
+        print(' KMS key alias: {kmska}\n Source table: {srct}\n Target table: {tart}\n Namespace: {ns}\n Application name: {app}\n'.format(kmska=args.kms_key_alias, srct=args.src_table, tart=args.tar_table, ns=args.namespace, app=args.app))
         print(' Kubestash secrets:')
         for k, v in kubestash_secrets.items():
             print('  "{secret_key}": {secret_value}'.format(secret_key=k, secret_value=v))
