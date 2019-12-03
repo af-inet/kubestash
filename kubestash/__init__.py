@@ -475,6 +475,9 @@ def cmd_pushall(args):
         # Go through each key and create a dict of namespace->secrets to be created
         # if they don't exist
         for secret_key in secrets:
+            if len(secret_key.split('/')) != 3:
+                print('Found malformed key: {sec}'.format(sec=secret_key))
+                continue
             ns, secret, env_key = secret_key.split('/')
             try:
                 secretMap[ns].add(secret)

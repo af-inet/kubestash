@@ -1,4 +1,4 @@
-FROM python:2.7-alpine3.7
+FROM python:2.7-alpine3.10
 # See https://github.com/pyca/cryptography/blob/master/docs/installation.rst#alpine
 RUN apk add --no-cache \
     gcc \
