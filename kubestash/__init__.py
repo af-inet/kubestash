@@ -520,7 +520,7 @@ def cmd_pushall(args):
 
 def filter_secrets(secrets, ns, secret):
     """ Filters the secrets passed and strips away the prefix"""
-    prefix = ns + "/" + secret
+    prefix = ns + "/" + secret + "/"
 
     return {k.split('/')[2]: secrets[k] for k in secrets if k.startswith(prefix)}
 
