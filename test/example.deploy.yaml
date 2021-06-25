@@ -15,7 +15,7 @@ spec:
         app: example
     spec:
       containers:
-      - name: example
+      name: example
         image: alpine:3.6
 
         # print out the environment variables and then sleep
@@ -24,11 +24,11 @@ spec:
 
         # takes everything from a secret called "kubestash" and puts it in env
         envFrom:
-        - secretRef:
-            name: kubestash
+        secretRef:
+            name: "kubestash"
 
         # you can also override variables if you need to
         # deviate from whats in secrets
         env:
-        - name: FOO
+        name: FOO
           value: REALBAR

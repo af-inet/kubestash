@@ -31,6 +31,8 @@ optional arguments:
   -f, --force           replace a secret if it already exists
   -n NAMESPACE, --namespace NAMESPACE
                         kubernetes namespace
+  -U, --uppercase       For lowercase keys in credstash, convert them
+                        to UPPER_CASE environment variables
   -l, --lowercase       For SECRET keys, lowercase and convert "_" to "-"
                         (DNS_SUBDOMAIN). Useful for compatibility with older
                         Kubernetes versions. (deprecated).
@@ -83,15 +85,13 @@ Environment variable names must consist solely of uppercase letters, digits, and
 
 So when you run `credstash -t=table put KEY VALUE`, you should take care that KEY meets these constraints.
 
-In older versions of Kubernetes, secret keys had to conform to DNS_SUBDOMAIN. [3]
+In older versions of Kubernetes, secret keys had to conform to DNS_SUBDOMAIN.
 
 For this purpose, the `-l --lowercase` flag is present to help you convert your keys if necessary.
 
 [1] https://kubernetes.io/docs/concepts/configuration/secret/
 
 [2] http://pubs.opengroup.org/onlinepubs/000095399/basedefs/xbd_chap08.html
-
-[3] https://github.com/kubernetes/community/blob/master/contributors/design-proposals/identifiers.md
 
 
 ## known issues
