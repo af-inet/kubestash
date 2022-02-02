@@ -1,5 +1,5 @@
 kubernetes==6.0.0
-boto3==1.6.5
+boto3==1.17.112
 credstash==1.14.0
 urllib3>=1.24.2
 
